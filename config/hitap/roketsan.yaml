@@ -1,0 +1,6 @@
+# Roketsan hitap kişileri — adres firma şablonundan gelir (roketsan.yaml)
+# Yalnızca ad ve telefon burada tanımlanır.
+musteri_kodu: roketsan
+kisiler:
+  - ad: İremsu Yazıcı
+    telefon: ""

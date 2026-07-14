@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "teklif-hazirlama"
+version = "0.2.0"
+description = "Antsis müşteri bazlı teklif formu üretim uygulaması"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "PySide6>=6.8.0",
+  "openpyxl>=3.1.5",
+  "pydantic>=2.0",
+  "PyYAML>=6.0",
+  "python-calamine>=0.3.0",
+  "pywin32>=306; sys_platform == 'win32'",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+teklif-hazirlama = "teklif_hazirlama.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

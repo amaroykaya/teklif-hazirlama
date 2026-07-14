@@ -1,0 +1,14 @@
+code: roketsan
+name: Roketsan Roket Sanayii ve Ticaret A.Ş.
+gecerlilik_gun: 30
+para_birimi: USD
+firma:
+  unvan: Roketsan Roket Sanayii ve Ticaret A.Ş.
+  adres_satirlari:
+    - Kemalpaşa Mahallesi Şehit Yüzbaşı Adem Kutlu Sok.
+    - No:21 06780 Elmadağ, ANKARA
+  telefon: "Tel : +90 312 860 55 00/2662"
+varsayilan_odeme_sekli: |
+  Peşin VEYA
+  Fatura sonrası 21 Gün Vade
+  Ödeme Günü USD Kuru ile
