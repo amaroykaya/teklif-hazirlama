@@ -148,10 +148,57 @@ class TemplateFiller:
         self._clear_stray_merges_in_sartlar(ws, summary_row)
         last_content_row = self._last_content_row(ws, summary_row)
         self._update_print_area(ws, last_content_row)
+        self._make_workbook_editable(wb)
 
         wb.save(output)
         wb.close()
+        self._unblock_windows_file(output)
         return output
+
+    def _make_workbook_editable(self, wb) -> None:
+        """Çıktı korumasız ve düzenlenebilir olsun (temiz Excel)."""
+        from openpyxl.styles import Protection
+
+        # Yardımcı gizli sayfaları çıkar (ör. adres)
+        for name in list(wb.sheetnames):
+            if name != self.sheet_name:
+                del wb[name]
+
+        ws = wb[self.sheet_name]
+        try:
+            ws.protection.disable()
+        except Exception:
+            ws.protection.sheet = False
+            ws.protection.password = None
+
+        if getattr(wb, "security", None) is not None:
+            try:
+                wb.security.workbookPassword = None
+                wb.security.revisionsPassword = None
+                wb.security.lockStructure = False
+                wb.security.lockWindows = False
+            except Exception:
+                pass
+
+        unlocked = Protection(locked=False, hidden=False)
+        for row in ws.iter_rows():
+            for cell in row:
+                cell.protection = unlocked
+
+        try:
+            wb.properties.docSecurity = 0
+        except Exception:
+            pass
+
+    @staticmethod
+    def _unblock_windows_file(path: Path) -> None:
+        """Mark of the Web / Protected View bandını kaldır."""
+        try:
+            zone = Path(str(path) + ":Zone.Identifier")
+            if zone.exists():
+                zone.unlink()
+        except OSError:
+            pass
 
     def _find_sartlar_row(self, ws, summary_row: int) -> int | None:
         for row in range(summary_row + 1, summary_row + 40):
@@ -176,12 +223,11 @@ class TemplateFiller:
         codes = document.urun_kodlari_sartlar.strip()
         ozel = [s.strip() for s in document.ozel_sartlar if s.strip()]
 
-        # Önce kodlar + özel şart, sonra diğer şart metinleri
+        # Önce kodlar + özel şart(lar) (her biri ayrı satır), sonra diğer şart metinleri
         top: list[str] = []
         if codes:
             top.append(codes)
-        if ozel:
-            top.append(", ".join(ozel))
+        top.extend(ozel)
         content_lines = top + sartlar
 
         existing = 0
@@ -206,11 +252,20 @@ class TemplateFiller:
             for i in range(needed, existing):
                 ws.cell(sartlar_row + 1 + i, 1).value = None
 
+        # Şablondaki gibi: her şart bir satır, hücreye wrap/sığdırma yok
         for i, text in enumerate(content_lines):
             row = sartlar_row + 1 + i
-            ws.cell(row, 1).value = text
-            self._apply_wrap_text(ws, row, (1,), vertical="top")
-            self._autofit_row_height(ws, row, [(1,)])
+            cell = ws.cell(row, 1)
+            cell.value = text
+            current = cell.alignment
+            cell.alignment = Alignment(
+                horizontal=current.horizontal if current else None,
+                vertical=current.vertical if current else "center",
+                wrap_text=False,
+                shrink_to_fit=False,
+            )
+            if ws.row_dimensions[style_source].height:
+                ws.row_dimensions[row].height = ws.row_dimensions[style_source].height
 
     def _clear_stray_merges_in_sartlar(self, ws, summary_row: int) -> None:
         """Remove leftover merges that cover şartlar text (e.g. template B47:F48)."""
@@ -236,12 +291,17 @@ class TemplateFiller:
         return last_row
 
     def _update_print_area(self, ws, last_row: int) -> None:
-        """PDF tek sayfaya sığsın; alt şartlar satırları kesilmesin diye +1 satır pay."""
+        """Excel tarafında 1×1 sayfa fit; PDF export aynı ayarı COM ile tekrarlar."""
         end_row = max(last_row + 1, 1)
         ws.print_area = f"A1:H{end_row}"
+        # openpyxl: fitToPage + width/height; scale None → Zoom kapalı
         ws.page_setup.fitToWidth = 1
         ws.page_setup.fitToHeight = 1
         ws.page_setup.scale = None
+        try:
+            ws.page_setup.fitToPage = True
+        except Exception:
+            pass
         if ws.sheet_properties.pageSetUpPr is not None:
             ws.sheet_properties.pageSetUpPr.fitToPage = True
 

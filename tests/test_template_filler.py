@@ -169,6 +169,19 @@ def test_teslimat_sekli_column_widens():
     assert (ws.column_dimensions["F"].width or 0) > 13
 
 
+def test_output_workbook_is_unprotected_single_sheet():
+    fixture = Path("tests/fixtures/QBR2525.xlsx")
+    if not fixture.exists():
+        return
+    path = _generate(str(fixture), teklif_no="TEST-CLEAN")
+    wb = openpyxl.load_workbook(path)
+    assert wb.sheetnames == ["Teklif"]
+    assert wb["Teklif"].protection.sheet is False
+    sample = wb["Teklif"]["A27"]
+    assert sample.protection.locked is False
+    wb.close()
+
+
 def test_print_area_covers_sartlar_bottom():
     real_file = Path(r"C:\Users\Asus.DESKTOP-9F6EQVL\Desktop\KLDHDh\QR075313.xlsx")
     if not real_file.exists():
@@ -232,6 +245,31 @@ def test_codes_and_ozel_insert_two_rows_under_sartlar():
     assert str(ws.cell(sartlar_row + 3, 1).value or "").startswith("Teklif edilen")
 
 
+def test_each_ozel_sart_is_own_row():
+    """Özel şartlar virgülle birleştirilmez; her biri ayrı satır."""
+    fixture = Path("tests/fixtures/QBR2525.xlsx")
+    if not fixture.exists():
+        return
+    path = _generate(
+        str(fixture),
+        teklif_no="TEST-OZEL-ROWS",
+        ozel_sartlar=["Manuel ozel sart 1", "Manuel ozel sart 2"],
+    )
+    ws = openpyxl.load_workbook(path)["Teklif"]
+    sartlar_row = _find_sartlar_row(ws)
+    assert sartlar_row is not None
+    assert "ANT-" in str(ws.cell(sartlar_row + 1, 1).value or "")
+    assert str(ws.cell(sartlar_row + 2, 1).value or "") == "Manuel ozel sart 1"
+    assert str(ws.cell(sartlar_row + 3, 1).value or "") == "Manuel ozel sart 2"
+    assert str(ws.cell(sartlar_row + 4, 1).value or "").startswith("Teklif edilen")
+    # Wrap / shrink ile hücreye sıkıştırma yok
+    for offset in (1, 2, 3, 4):
+        cell = ws.cell(sartlar_row + offset, 1)
+        align = cell.alignment
+        assert not align.wrap_text
+        assert not align.shrink_to_fit
+
+
 def test_sartlar_and_ozel_sart_below_header_for_many_lines():
     real_file = Path(r"C:\Users\Asus.DESKTOP-9F6EQVL\Desktop\KLDHDh\QR075313.xlsx")
     if not real_file.exists():
@@ -246,8 +284,9 @@ def test_sartlar_and_ozel_sart_below_header_for_many_lines():
     sartlar_row = _find_sartlar_row(ws)
     assert sartlar_row is not None
     assert "ANT-DVI-ENC-623F" in str(ws.cell(sartlar_row + 1, 1).value or "")
-    assert "Manuel ozel sart 1" in str(ws.cell(sartlar_row + 2, 1).value or "")
-    assert str(ws.cell(sartlar_row + 3, 1).value or "").startswith("Teklif edilen")
+    assert str(ws.cell(sartlar_row + 2, 1).value or "") == "Manuel ozel sart 1"
+    assert str(ws.cell(sartlar_row + 3, 1).value or "") == "Manuel ozel sart 2"
+    assert str(ws.cell(sartlar_row + 4, 1).value or "").startswith("Teklif edilen")
 
 
 def test_editable_sartlar_can_be_removed():

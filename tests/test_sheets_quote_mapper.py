@@ -37,6 +37,23 @@ def test_sheets_row_to_quote_line_basic():
     assert "BU-V-KULLANILMAMALI" not in line.aciklama
 
 
+def test_no_axb_hafta_omits_teslim_parcasi():
+    """CAP-3: Sheets sevk'te N x H hafta yoksa Teslim Tarihi parçası üretilmez."""
+    sheet = SheetsRow(
+        musteri_stok_kodu="002525",
+        antsis_urun_kodu="ANT5307",
+        teklif_sevk_tarihi="01.11.2026",
+        birim_fiyat="100",
+        adet="1",
+        proje_tanimi="Urun",
+    )
+    line = sheets_row_to_quote_line(sheet, 1)
+    assert line.teslim_suresi_parcasi == ""
+    result = apply_sheets_rows([sheet])
+    assert "ANT5307" not in result.teslim_tarihi_text
+    assert "T0+" not in result.teslim_tarihi_text
+
+
 def test_apply_sheets_fills_teslim_istek_and_teklif_no():
     rows = [
         SheetsRow(

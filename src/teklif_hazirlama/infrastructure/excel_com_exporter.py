@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-import re
 from pathlib import Path
+
 
 class ExcelComExporter:
     def is_available(self) -> bool:
         try:
             import win32com.client  # noqa: F401
+
             return True
         except ImportError:
             return False
@@ -18,6 +19,10 @@ class ExcelComExporter:
         *,
         sheet_name: str | None = None,
     ) -> Path:
+        """
+        Önce üretilmiş Excel'i açar; sayfa ayarını
+        genişlik=1 sayfa × yükseklik=1 sayfa yapıp PDF'e aktarır.
+        """
         import pythoncom
         import win32com.client
 
@@ -31,20 +36,26 @@ class ExcelComExporter:
             excel = win32com.client.DispatchEx("Excel.Application")
             excel.Visible = False
             excel.DisplayAlerts = False
+            excel.ScreenUpdating = False
             wb = excel.Workbooks.Open(xlsx)
             ws = self._resolve_worksheet(wb, sheet_name)
-            self._configure_page_setup(ws)
-            # 0 = xlTypePDF; IgnorePrintAreas=False → şablondaki print area kullanılır
+            self._configure_fit_one_page(excel, ws)
+            # 0 = xlTypePDF; IgnorePrintAreas=False → print area kullanılır
             ws.ExportAsFixedFormat(
-                0,
-                pdf,
-                0,
-                True,
-                False,
+                Type=0,
+                Filename=pdf,
+                Quality=0,
+                IncludeDocProperties=True,
+                IgnorePrintAreas=False,
+                OpenAfterPublish=False,
             )
             wb.Close(False)
         finally:
             if excel is not None:
+                try:
+                    excel.ScreenUpdating = True
+                except Exception:
+                    pass
                 excel.Quit()
             pythoncom.CoUninitialize()
         return Path(pdf)
@@ -59,56 +70,74 @@ class ExcelComExporter:
                 continue
         return wb.Worksheets(1)
 
-    def _configure_page_setup(self, ws) -> None:
+    def _configure_fit_one_page(self, excel, ws) -> None:
+        """
+        Zoom kapalı + FitToPages 1×1.
+        PrintCommunication olmadan Excel COM bu ayarları sık sık yok sayar.
+        """
         ps = ws.PageSetup
+
+        # Print area: yoksa UsedRange (en az A:H)
         existing = (ps.PrintArea or "").strip()
         if not existing:
             used = ws.UsedRange
             last_row = used.Row + used.Rows.Count - 1
             last_col = max(8, used.Column + used.Columns.Count - 1)
             end_col = self._col_letter(last_col)
-            ps.PrintArea = f"$A$1:${end_col}${last_row}"
+            print_area = f"$A$1:${end_col}${last_row}"
+        else:
+            print_area = existing
 
-        self._autofit_print_area_rows(ws)
+        try:
+            excel.PrintCommunication = False
+        except Exception:
+            pass
 
-        app = ws.Application
-        for attr, inches in (
-            ("LeftMargin", 0.25),
-            ("RightMargin", 0.25),
-            ("TopMargin", 0.35),
-            ("BottomMargin", 0.25),
-            ("HeaderMargin", 0.15),
-            ("FooterMargin", 0.15),
-        ):
+        try:
+            ps.PrintArea = print_area
+            for attr, inches in (
+                ("LeftMargin", 0.25),
+                ("RightMargin", 0.25),
+                ("TopMargin", 0.35),
+                ("BottomMargin", 0.25),
+                ("HeaderMargin", 0.15),
+                ("FooterMargin", 0.15),
+            ):
+                try:
+                    setattr(ps, attr, excel.InchesToPoints(inches))
+                except Exception:
+                    pass
+
             try:
-                setattr(ps, attr, app.InchesToPoints(inches))
+                ps.Orientation = 1  # xlPortrait
+            except Exception:
+                pass
+            try:
+                ps.PaperSize = 9  # xlPaperA4
             except Exception:
                 pass
 
-        # Tek sayfa: 1 genişlik × 1 yükseklik (Zoom kapalı olmalı)
-        ps.Zoom = False
-        ps.FitToPagesWide = 1
-        ps.FitToPagesTall = 1
-        try:
-            ps.Orientation = 1  # xlPortrait
-        except Exception:
-            pass
+            # Kritik: Zoom False olmadan FitToPages yok sayılır
+            ps.Zoom = False
+            ps.FitToPagesWide = 1
+            ps.FitToPagesTall = 1
+        finally:
+            try:
+                excel.PrintCommunication = True
+            except Exception:
+                pass
 
-    def _autofit_print_area_rows(self, ws) -> None:
-        """PDF'de alt satırlar kesilmesin: print area içinde satır yüksekliklerini güncelle."""
-        area = (ws.PageSetup.PrintArea or "").strip()
-        if not area:
-            return
-        # 'Teklif'!$A$1:$H$46 veya $A$1:$H$46
-        part = area.split("!")[-1]
-        match = re.search(r"\$A\$1:\$H\$(\d+)", part, re.IGNORECASE)
-        if not match:
-            return
-        last_row = int(match.group(1))
+        # Doğrulama — COM bazen Zoom'u geri alır; ikinci kez zorla
         try:
-            ws.Range(f"$A$1:$H${last_row}").Rows.AutoFit()
-        except Exception:
-            pass
+            excel.PrintCommunication = False
+            ps.Zoom = False
+            ps.FitToPagesWide = 1
+            ps.FitToPagesTall = 1
+        finally:
+            try:
+                excel.PrintCommunication = True
+            except Exception:
+                pass
 
     @staticmethod
     def _col_letter(col: int) -> str:

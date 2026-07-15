@@ -22,10 +22,18 @@ from teklif_hazirlama.infrastructure.excel_import_reader import (
     DATA_START_ROW,
     MAX_HEADER_COLS,
     ImportSheetReader,
+    is_teklifte_bulun_y,
     resolve_field_columns,
 )
 
 NA = "na"
+
+_FILL_NA_EXTRA = {
+    "fiyat": NA,
+    "temin_suresi": NA,
+    "tedarikci_notu": NA,
+    "garanti_suresi": 1.0,
+}
 
 
 class ExcelEnrichError(Exception):
@@ -35,7 +43,7 @@ class ExcelEnrichError(Exception):
 @dataclass
 class EnrichResult:
     enriched_path: Path
-    matched: int = 0  # doldurulan satır sayısı
+    matched: int = 0  # Sheets ile eşlenip doldurulan Y satırı sayısı
     warnings: list[str] = field(default_factory=list)
 
 
@@ -61,7 +69,7 @@ def _parse_price(value: str) -> Decimal | None:
 
 
 def _fill_values_from_sheet(sheet: SheetsRow) -> dict[str, Any]:
-    """Sheets satırından Excel'e yazılacak alanlar (eksik/na → 'na')."""
+    """Sheets satırından doldurulmuş Excel'e yazılacak alanlar."""
     out: dict[str, Any] = {}
 
     price = _parse_price(sheet.birim_fiyat)
@@ -97,15 +105,21 @@ def _apply_fill_to_cells(
 
 
 def _unique_dest(dest_dir: Path, source: Path) -> Path:
-    """Her seferinde yeni dosya — Windows dosya kilidi (WinError 32) önlenir."""
+    """Her seferinde yeni dosya — kaynak import bozulmaz; kilidi önler."""
     dest_dir.mkdir(parents=True, exist_ok=True)
-    return dest_dir / f"{source.stem}_dolu_{uuid.uuid4().hex[:8]}{source.suffix}"
+    dest = dest_dir / f"{source.stem}_dolu_{uuid.uuid4().hex[:8]}{source.suffix}"
+    if dest.resolve() == Path(source).resolve():
+        raise ExcelEnrichError(
+            "Doldurulmuş çıktı kaynak import ile aynı yolda olamaz."
+        )
+    return dest
 
 
 class ExcelEnricher:
     """
-    Sheets satırlarını Excel veri satırlarına **sırayla** yazar.
-    Stok kodu eşleştirmesi yok. Boş/na → Excel'e 'na'.
+    Kaynak import Excel'e dokunmaz; yeni doldurulmuş kopya üretir.
+    Yalnızca Teklifte Bulun = Y satırlarını Sheets ile sırayla eşler.
+    N satırları kopyada kalır, üzerine yazılmaz.
     """
 
     def enrich(
@@ -165,30 +179,22 @@ class ExcelEnricher:
             self._ensure_required_columns(columns, warnings)
 
             data_rows = self._list_excel_data_rows(ws, columns)
-            filled = self._pair_and_warn(len(data_rows), len(sheets_rows), warnings)
+            y_rows = [
+                row_idx
+                for row_idx in data_rows
+                if self._row_is_y(ws, row_idx, columns)
+            ]
+            filled = self._pair_and_warn(len(y_rows), len(sheets_rows), warnings)
 
             for i in range(filled):
-                row_idx = data_rows[i]
-                fill = _fill_values_from_sheet(sheets_rows[i])
-                for field, value in fill.items():
-                    if field not in columns:
-                        continue
-                    ws.cell(row=row_idx, column=columns[field] + 1).value = value
+                self._write_fill(
+                    ws, y_rows[i], columns, _fill_values_from_sheet(sheets_rows[i])
+                )
 
-            for i in range(filled, len(data_rows)):
-                row_idx = data_rows[i]
-                for field, value in (
-                    ("fiyat", NA),
-                    ("temin_suresi", NA),
-                    ("tedarikci_notu", NA),
-                    ("garanti_suresi", 1.0),
-                ):
-                    if field in columns:
-                        ws.cell(
-                            row=row_idx, column=columns[field] + 1
-                        ).value = value
+            for i in range(filled, len(y_rows)):
+                self._write_fill(ws, y_rows[i], columns, dict(_FILL_NA_EXTRA))
 
-            if filled == 0 and not data_rows:
+            if filled == 0 and not y_rows and not data_rows:
                 raise ExcelEnrichError("Excel'de doldurulacak veri satırı yok.")
             wb.save(dest)
         finally:
@@ -237,19 +243,26 @@ class ExcelEnricher:
                 f"ERP Excel satırları okunamadı: {source.name}. ({exc})"
             ) from exc
 
-        filled = self._pair_and_warn(len(raw_rows), len(sheets_rows), warnings)
+        y_indices = [
+            i
+            for i, (_row_idx, cells) in enumerate(raw_rows)
+            if is_teklifte_bulun_y(cells.get("teklifte_bulun"))
+        ]
+        filled = self._pair_and_warn(len(y_indices), len(sheets_rows), warnings)
+        sheet_by_y_pos = {y_indices[i]: sheets_rows[i] for i in range(filled)}
+        y_set = set(y_indices)
+
         enriched_rows: list[dict[str, Any]] = []
         for i, (_row_idx, cells) in enumerate(raw_rows):
-            if i < filled:
-                fill = _fill_values_from_sheet(sheets_rows[i])
+            if i in sheet_by_y_pos:
+                fill = _fill_values_from_sheet(sheet_by_y_pos[i])
+                enriched_rows.append(_apply_fill_to_cells(cells, fill, columns))
+            elif i in y_set:
+                enriched_rows.append(
+                    _apply_fill_to_cells(cells, dict(_FILL_NA_EXTRA), columns)
+                )
             else:
-                fill = {
-                    "fiyat": NA,
-                    "temin_suresi": NA,
-                    "tedarikci_notu": NA,
-                    "garanti_suresi": 1.0,
-                }
-            enriched_rows.append(_apply_fill_to_cells(cells, fill, columns))
+                enriched_rows.append(dict(cells))
 
         if not enriched_rows:
             raise ExcelEnrichError("Excel'de doldurulacak veri satırı yok.")
@@ -281,6 +294,21 @@ class ExcelEnricher:
             enriched_path=dest, matched=filled, warnings=warnings
         )
 
+    def _write_fill(
+        self, ws, row_idx: int, columns: dict[str, int], fill: dict[str, Any]
+    ) -> None:
+        for field, value in fill.items():
+            if field not in columns:
+                continue
+            ws.cell(row=row_idx, column=columns[field] + 1).value = value
+
+    @staticmethod
+    def _row_is_y(ws, row_idx: int, columns: dict[str, int]) -> bool:
+        col = columns.get("teklifte_bulun")
+        if col is None:
+            return True
+        return is_teklifte_bulun_y(ws.cell(row=row_idx, column=col + 1).value)
+
     def _list_excel_data_rows(self, ws, columns: dict[str, int]) -> list[int]:
         """Boş olmayan veri satırı indeksleri (sırayla)."""
         rows: list[int] = []
@@ -308,11 +336,11 @@ class ExcelEnricher:
         if sheets_count > excel_count:
             warnings.append(
                 f"Sheets'te {sheets_count - excel_count} fazla satır var; "
-                "Excel satır sayısına göre sırayla dolduruldu."
+                "Excel Y satır sayısına göre sırayla dolduruldu."
             )
         if excel_count > sheets_count:
             warnings.append(
-                f"Excel'de {excel_count - sheets_count} fazla satır var; "
+                f"Excel'de {excel_count - sheets_count} fazla Y satırı var; "
                 "eksik Sheets karşılıkları 'na' yazıldı."
             )
         return filled

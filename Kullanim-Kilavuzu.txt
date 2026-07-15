@@ -1,0 +1,186 @@
+================================================================================
+  ANTSIS TEKLİF HAZIRLAMA — KULLANIM KILAVUZU
+================================================================================
+
+Sürüm: 0.2.0
+Amaç: Google Sheets + Import Excel ile Antsis teklif formu (Excel + PDF) üretmek.
+
+
+--------------------------------------------------------------------------------
+1. PROGRAMI AÇMA
+--------------------------------------------------------------------------------
+
+1. Proje klasöründeki run.bat dosyasına çift tıklayın.
+2. Ana menü açılır: "Ne yapmak istiyorsunuz?"
+
+
+--------------------------------------------------------------------------------
+2. ANA MENÜ — HANGİSİNİ SEÇMELİYİM?
+--------------------------------------------------------------------------------
+
+  • Teklif Kaydı
+      → Sheets / ERP öncesi hızlı kayıt ve panoya kopyalama (isteğe bağlı).
+
+  • İlk Teklif Formu Hazırlama
+      → İlk teklif formunu üretir (Excel + PDF).
+
+  • Revize Teklif Formu Hazırlama
+      → Revize teklif formunu üretir (indirimli fiyat / revizyon alanları).
+
+
+--------------------------------------------------------------------------------
+3. TEKLİF KAYDI (İSTEĞE BAĞLI ÖN ADIM)
+--------------------------------------------------------------------------------
+
+1. Ana menüden "Teklif Kaydı"nı açın.
+2. Müşteri seçin (gerekirse Ekle / Düzenle).
+3. Hitap kişisini seçin veya ekleyin.
+4. Teklif No alanını kontrol edin (otomatik gelebilir).
+5. İsterseniz "Excel Seç..." ile istek Excel’ini bağlayın.
+6. "İlk Teklif Kaydı Kopyala" ile panoya alın; Sheets veya notlarınıza
+   yapıştırabilirsiniz.
+7. "← Ana Menü" ile geri dönün.
+
+Not: Teklif formu üretmek zorunlu değildir; form için bir sonraki bölüme geçin.
+
+
+--------------------------------------------------------------------------------
+4. İLK TEKLİF FORMU — ADIM ADIM
+--------------------------------------------------------------------------------
+
+4.1  Formu açın
+  • Ana menü → "İlk Teklif Formu Hazırlama"
+
+4.2  Üst bilgileri doldurun
+  • Müşteri
+  • Hitap kişisi (telefon otomatik gelebilir)
+  • Hazırlayan
+  • Teslimat / Teslimat Şekli / Ödeme Şekli
+  • Teklif No (Sheets’ten de dolabilir; kontrol edin)
+
+4.3  Google Sheets satırlarını yapıştırın (ZORUNLU adım)
+  1. Google Sheets’te ilgili satırları seçip kopyalayın (Ctrl+C).
+  2. Programda "Yapıştır / Düzenle"ye tıklayın.
+  3. Açılan pencerede "Panodan yapıştır" (veya Ctrl+V).
+  4. Satırları gözden geçirin; gerekirse hücreleri düzeltin.
+  5. Tamam / Onaylayın.
+
+  Bu adım genellikle doldurur:
+    — İstek No
+    — Teslim Tarihi (satırlarda "N x H hafta" varsa)
+    — Ürün satırları (adet, kod, açıklama, fiyat vb.)
+    — Teklif No (Sheets’te varsa)
+
+4.4  Import Excel seçin
+  1. "Excel Seç..." ile ERP / istek Excel dosyanızı seçin.
+  2. Program orijinal dosyaya DOKUNMAZ.
+  3. "…-doldurulmuş.xlsx" adlı bir kopya üretir
+     (Fiyat, Temin Süresi, Tedarikçi Notu, Garanti=1).
+  4. Karşılaştırma uyarılarını okuyun (Sheets ile Excel farkları).
+
+4.5  Ürün tablosunu kontrol edin
+  • Satırlar doğru mu?
+  • Gerekirse "Satır Ekle" / "Satır Sil"
+  • Fiyat, adet, açıklama son hallerini kontrol edin
+
+4.6  Şartlar
+  • Özel Şartlar: bu teklife özel notlar (her satır ayrı şart)
+  • Şartlar: şablondaki genel şartlar (isterseniz düzenleyin)
+
+4.7  Çıktı klasörü
+  • "Klasör Seç..." ile kaydedilecek yeri seçin.
+
+4.8  Önizleme veya üret
+  • Önizleme (Excel)
+      → Geçici Excel açılır; pakete yazılmaz.
+  • Teklif Oluştur (Excel + PDF)
+      → Klasörde paket oluşturulur (aşağıda dosya listesi).
+
+
+--------------------------------------------------------------------------------
+5. REVİZE TEKLİF FORMU — FARKLAR
+--------------------------------------------------------------------------------
+
+1. Ana menü → "Revize Teklif Formu Hazırlama"
+2. Akış ilk teklifle aynıdır; ek noktalar:
+
+  • Sheets yapıştırmada: İLK REVİZYON satırları + GÜNCEL satırları
+    birlikte yapıştırın (Revizyonu = 1 olanlarla güncel olanlar).
+  • Birim fiyat ← ilk revizyon
+  • İndirimli birim / güncel bilgiler ← güncel satırlar
+  • "Revizyon" alanı Sheets’ten hesaplanır (formda görünür)
+  • Revize şablonunda indirim sütunları vardır
+
+
+--------------------------------------------------------------------------------
+6. ÇIKTI PAKETİNDE NELER OLUR?
+--------------------------------------------------------------------------------
+
+Klasör adı örneği:
+  teklif-{İstekNo}-{TeklifNo}
+
+İçerik (duruma göre):
+  • Orijinal import Excel (kopya)
+  • {İstekNo}-doldurulmuş.xlsx     → doldurulmuş import
+  • teklif-….xlsx                  → teklif formu (düzenlenebilir)
+  • teklif-….pdf                   → PDF (Excel kuruluysa, 1 sayfa sığdırma)
+
+
+--------------------------------------------------------------------------------
+7. DİKKAT EDİLECEKLER
+--------------------------------------------------------------------------------
+
+  • Import Excel’de "Teklifte Bulun = N" satırları teklife / doldurmaya
+    baz alınmaz. N satırları doldurulmuş kopyada kalır ama üzerine
+    yazılmaz.
+
+  • Sheets "Teklif Sevk Tarihi" hücresinde "5 x 10 hafta" gibi desen
+    yoksa o satır Teslim Tarihi alanına EKLENMEZ.
+
+  • Sheets ana kaynaktır; Import Excel boşlukları doldurur / karşılaştırır.
+
+  • PDF için bilgisayarda Microsoft Excel kurulu olmalıdır.
+    Excel yoksa yalnızca .xlsx üretilir.
+
+  • Üretilen teklif Excel korumasızdır; doğrudan düzenleyebilirsiniz.
+
+
+--------------------------------------------------------------------------------
+8. SIK KARŞILAŞILAN DURUMLAR
+--------------------------------------------------------------------------------
+
+Soru: Sheets yapıştırmadan Excel seçersem?
+Cevap: Önce Sheets satırlarını yapıştırın; program bunu bekler.
+
+Soru: PDF oluşmadı, sadece Excel var.
+Cevap: Excel kurulu mu kontrol edin. Durum çubuğundaki uyarıyı okuyun.
+
+Soru: Doldurulmuş Excel’de N satırına yanlış fiyat yazıldı.
+Cevap: Uygulamayı kapatıp açın; Sheets + Import’u yeniden uygulayın.
+       Güncel sürüm N satırını yazmaz.
+
+Soru: Teslim Tarihi boş kaldı.
+Cevap: Sheets sevk sütununda "adet x hafta" (ör. 2 x 6 hafta) olup
+       olmadığına bakın.
+
+Soru: Önizleme ile oluşturulan dosya nerede?
+Cevap: Önizleme geçicidir. Kalıcı paket için "Teklif Oluştur" kullanın.
+
+
+--------------------------------------------------------------------------------
+9. HIZLI KONTROL LİSTESİ (İLK TEKLİF)
+--------------------------------------------------------------------------------
+
+  [ ] Müşteri / hitap / hazırlayan / lojistik alanları
+  [ ] Sheets yapıştırıldı ve satırlar kontrol edildi
+  [ ] Import Excel seçildi; uyarılar okundu
+  [ ] Ürün tablosu ve şartlar kontrol edildi
+  [ ] Çıktı klasörü seçildi
+  [ ] Teklif Oluştur (Excel + PDF) çalıştırıldı
+  [ ] Paket klasöründe xlsx (+ pdf) açılıp kontrol edildi
+
+
+================================================================================
+  Sorun devam ederse: ekran görüntüsü + kullandığınız Sheets / Excel örneği
+  ile destek isteyin.
+================================================================================

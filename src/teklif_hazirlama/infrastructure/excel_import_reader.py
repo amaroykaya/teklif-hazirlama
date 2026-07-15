@@ -54,6 +54,18 @@ REQUIRED_FIELDS_ISTEK = (
 )
 
 
+def is_teklifte_bulun_y(value: Any, *, mode: str = "teklif") -> bool:
+    """Teklifte Bulun = Y (veya eşdeğeri) mi? mode=istek için boş satır da kabul."""
+    if value is True:
+        return True
+    text = str(value or "").strip().upper()
+    if text in {"Y", "YES", "EVET", "1"}:
+        return True
+    if mode == "istek" and text == "":
+        return True
+    return False
+
+
 def normalize_header(value: Any) -> str:
     if value is None:
         return ""

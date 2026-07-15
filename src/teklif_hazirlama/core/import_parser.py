@@ -15,6 +15,7 @@ from teklif_hazirlama.infrastructure.excel_import_reader import (
     REQUIRED_FIELDS,
     REQUIRED_FIELDS_ISTEK,
     ImportSheetReader,
+    is_teklifte_bulun_y,
     normalize_header,
 )
 
@@ -115,15 +116,7 @@ class ImportParser:
         return 1, 2
 
     def _include_row(self, value, *, mode: str) -> bool:
-        if value is True:
-            return True
-        text = str(value or "").strip().upper()
-        if text in {"Y", "YES", "EVET", "1"}:
-            return True
-        # Yeni istek Excel'inde Teklifte Bulun boş gelebiliyor
-        if mode == "istek" and text == "":
-            return True
-        return False
+        return is_teklifte_bulun_y(value, mode=mode)
 
     def _validate_and_resolve_columns(
         self, path: Path, required: tuple[str, ...], *, header_row: int
