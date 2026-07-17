@@ -3,6 +3,7 @@ from teklif_hazirlama.core.sevk_tarihi_parser import (
     compute_temin_gun,
     parse_sevk_tarihi,
     parse_week_entries,
+    resolve_teslim_entries_for_line,
     round_up_to_ten,
 )
 
@@ -69,3 +70,17 @@ def test_parse_sevk_no_pattern_warns():
     result = parse_sevk_tarihi("01.11.2026")
     assert result.temin_gun is None
     assert result.warning
+
+
+def test_resolve_teslim_same_code_two_lines_by_index():
+    teslim = (
+        "ANT-DUP - 5 adet T0+12 Hafta\n"
+        "ANT-DUP - 5 adet T0+26 Hafta\n"
+        "T0: Sipariş Onay Tarihi"
+    )
+    e0 = resolve_teslim_entries_for_line(teslim, "ANT-DUP", line_index=0)
+    e1 = resolve_teslim_entries_for_line(teslim, "ANT-DUP", line_index=1)
+    assert [(e.adet, e.hafta) for e in e0] == [(5, 12)]
+    assert [(e.adet, e.hafta) for e in e1] == [(5, 26)]
+    assert compute_temin_gun(e0) == 90
+    assert compute_temin_gun(e1) == 190

@@ -96,6 +96,54 @@ def test_enrich_fills_by_row_order(tmp_path):
     assert lines[1].ants_is_urun_kodu == "na"
 
 
+def test_enrich_same_antsis_code_two_rows_distinct_temin(tmp_path):
+    """Aynı Antsis kodu 2 Sheets satırı → doldurulmuş Excel'de iki farklı Temin."""
+    src = tmp_path / "dup.xlsx"
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["meta"])
+    ws.append(
+        [
+            "Sıra",
+            "Teklifte Bulun",
+            "Stok Kodu",
+            "Stok Tanımı",
+            "Miktar",
+            "Fiyat",
+            "Satır Toplamı",
+            "Tedarikçi Notu",
+            "Temin Süresi (Takvim Günü)",
+            "Garanti Süresi (Yıl)",
+        ]
+    )
+    ws.append([1, "Y", "111", "A", 5, None, None, None, None, None])
+    ws.append([2, "Y", "222", "B", 5, None, None, None, None, None])
+    wb.save(src)
+    wb.close()
+
+    sheets = [
+        SheetsRow(
+            musteri_stok_kodu="111",
+            antsis_urun_kodu="ANT-DUP",
+            teklif_sevk_tarihi="5 x 12 hafta",
+            birim_fiyat="10,00",
+        ),
+        SheetsRow(
+            musteri_stok_kodu="222",
+            antsis_urun_kodu="ANT-DUP",
+            teklif_sevk_tarihi="5 x 26 hafta",
+            birim_fiyat="10,00",
+        ),
+    ]
+    result = ExcelEnricher().enrich(src, sheets, output_dir=tmp_path / "o")
+    assert result.matched == 2
+    out = load_workbook(result.enriched_path, data_only=True).active
+    assert out.cell(3, 9).value == 90   # 12*7=84 → 90
+    assert out.cell(4, 9).value == 190  # 26*7=182 → 190
+    assert "T0+12" in str(out.cell(3, 8).value or "")
+    assert "T0+26" in str(out.cell(4, 8).value or "")
+
+
 def test_enrich_skips_n_rows_keeps_them_untouched(tmp_path):
     """CAP-1: N satırı eşlemeyi kaydırmaz; kopyada orijinal değerler kalır."""
     src = tmp_path / "mix.xlsx"

@@ -219,3 +219,64 @@ def test_sync_temin_with_code_mismatch_still_uses_ui_text(tmp_path):
     wb = load_workbook(path, data_only=True)
     assert wb.active.cell(3, 8).value == 220
     wb.close()
+
+
+def test_sync_same_antsis_code_two_rows_keep_distinct_temin(tmp_path):
+    """Aynı ürün kodu 2 satır: 5x12 ve 5x26 → her satır kendi Temin'ini alır."""
+    path = tmp_path / "dup.xlsx"
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["meta"])
+    ws.append(
+        [
+            "Teklifte Bulun",
+            "Stok Kodu",
+            "Stok Tanımı",
+            "Miktar",
+            "Fiyat",
+            "Satır Toplamı",
+            "Tedarikçi Notu",
+            "Temin Süresi (Takvim Günü)",
+            "Garanti Süresi (Yıl)",
+        ]
+    )
+    ws.append(["Y", "111", "A1", 5, None, None, None, None, None])
+    ws.append(["Y", "222", "A2", 5, None, None, None, None, None])
+    wb.save(path)
+    wb.close()
+
+    code = "ANT-DUP"
+    lines = [
+        QuoteLine(
+            row_number=1,
+            adet=5,
+            ants_is_urun_kodu=code,
+            aciklama="Birinci",
+            birim_fiyat=Decimal("10"),
+            toplam_fiyat=Decimal("50"),
+            stok_kodu="111",
+            teslim_suresi_parcasi=f"{code} - 5 adet T0+12 Hafta",
+        ),
+        QuoteLine(
+            row_number=2,
+            adet=5,
+            ants_is_urun_kodu=code,
+            aciklama="Ikinci",
+            birim_fiyat=Decimal("10"),
+            toplam_fiyat=Decimal("50"),
+            stok_kodu="222",
+            teslim_suresi_parcasi=f"{code} - 5 adet T0+26 Hafta",
+        ),
+    ]
+    teslim = (
+        f"{code} - 5 adet T0+12 Hafta\n"
+        f"{code} - 5 adet T0+26 Hafta\n"
+        "T0: Sipariş Onay Tarihi"
+    )
+    sync_quote_lines_to_import_excel(path, lines, teslim_tarihi_text=teslim)
+    out = load_workbook(path, data_only=True).active
+    # 12 hafta → 84 → 90; 26 hafta → 182 → 190
+    assert out.cell(3, 8).value == 90
+    assert out.cell(4, 8).value == 190
+    assert "T0+12" in str(out.cell(3, 7).value or "")
+    assert "T0+26" in str(out.cell(4, 7).value or "")

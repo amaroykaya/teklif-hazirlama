@@ -197,20 +197,52 @@ def resolve_teslim_entries_for_code(
     return parse_t0_adet_entries(teslim_tarihi_text)
 
 
+def _entries_from_segment(seg_code: str, body: str) -> list[WeekEntry]:
+    return parse_t0_adet_entries(body) or parse_t0_adet_entries(
+        f"{seg_code} - {body}" if seg_code else body
+    )
+
+
 def resolve_teslim_entries_for_line(
     teslim_tarihi_text: str | None,
     code: str,
     *,
     line_index: int = 0,
 ) -> list[WeekEntry]:
-    """Satır indeksine göre de eşlemeyi dener (çoklu ürün)."""
-    entries = resolve_teslim_entries_for_code(teslim_tarihi_text, code)
-    if entries:
-        return entries
+    """
+    Ürün satırı ↔ Teslim Tarihi satırı (sıra korunur).
+
+    Aynı Antsis kodu birden fazla satırdaysa (5x12 ve 5x26 gibi) her satır
+    kendi dilimini alır; yalnızca koda bakıp ilk dilimi tekrarlamaz.
+    """
+    code = (code or "").strip()
     segments = _iter_teslim_segments(teslim_tarihi_text)
+
+    # 1) Satır indeksi = Teslim satır sırası (aynı kod tekrarlarında zorunlu)
     if 0 <= line_index < len(segments):
         seg_code, body = segments[line_index]
-        return parse_t0_adet_entries(body) or parse_t0_adet_entries(
-            f"{seg_code} - {body}" if seg_code else body
-        )
-    return []
+        entries = _entries_from_segment(seg_code, body)
+        if entries and (not code or not seg_code or _codes_match(code, seg_code)):
+            return entries
+
+    # 2) Aynı koda ait N. oluşum (satır sırası kaymışsa)
+    if code:
+        matches: list[list[WeekEntry]] = []
+        for seg_code, body in segments:
+            if not _codes_match(code, seg_code):
+                continue
+            entries = _entries_from_segment(seg_code, body)
+            if entries:
+                matches.append(entries)
+        if matches:
+            occ = sum(
+                1
+                for i, (seg_code, _) in enumerate(segments)
+                if i < line_index and _codes_match(code, seg_code)
+            )
+            if occ < len(matches):
+                return matches[occ]
+            return matches[0]
+
+    # 3) Eski tek-kod / tek-blok fallback
+    return resolve_teslim_entries_for_code(teslim_tarihi_text, code)
