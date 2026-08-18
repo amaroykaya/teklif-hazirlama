@@ -2,9 +2,16 @@ from openpyxl import Workbook
 
 from teklif_hazirlama.application.order_workflow import OrderWorkflow, build_aciklama_text
 from teklif_hazirlama.core.order_clipboard import (
+    anten_row_cells,
+    build_anten_sheets_html,
+    build_anten_sheets_tsv,
+    build_elektronik_sheets_html,
+    build_elektronik_sheets_tsv,
     build_order_sheets_html,
     build_order_sheets_tsv,
+    elektronik_row_cells,
 )
+from teklif_hazirlama.core.models import OrderRow
 from teklif_hazirlama.core.quality_highlight import (
     format_quality_html,
     is_highlight_quality_code,
@@ -15,7 +22,7 @@ from teklif_hazirlama.core.order_excel_parser import (
     normalize_uretim_yeri,
     siparis_satir_no_to_ss,
 )
-from teklif_hazirlama.core.order_pdf_parser import parse_order_pdf_text
+from teklif_hazirlama.core.order_pdf_parser import parse_order_pdf_text, strip_po_prefix
 
 
 def test_order_excel_parser_and_workflow(tmp_path):
@@ -66,7 +73,7 @@ def test_order_excel_parser_and_workflow(tmp_path):
 
     header, pdf_lines = parse_order_pdf_text(pdf_text)
     assert header.siparis_tarihi == "19.12.2025"
-    assert header.siparis_numarasi == "PO-7788"
+    assert header.siparis_numarasi == "7788"
     assert pdf_lines["SS5"].planlanan_sevk_tarihi == "23.01.2026"
 
     workflow = OrderWorkflow()
@@ -88,9 +95,82 @@ def test_order_excel_parser_and_workflow(tmp_path):
     assert '"Sorumlu: Ada Lovelace\nKalite Provizyonları: \nSevk yeri : Elmadağ"' in tsv
 
 
+def test_anten_copy_remaps_ana_columns():
+    row = OrderRow(
+        no="should-drop",
+        firma="Roketsan",
+        antsis_parca_no="ANT-1",
+        siparis_satir_no="5-1",
+        musteri_parca_no="00236425",
+        proje="Govde / SS5",
+        siparis_adedi="3",
+        siparis_tarihi="19.12.2025",
+        siparis_numarasi="PO-7788",
+        planlanan_sevk_tarihi="23.01.2026",
+        birim_fiyat="12.5",
+        kalite_provizyonlari="GP2,C,K",
+        aciklama="Sorumlu: Ada\nKalite Provizyonları: GP2,C,K\nSevk yeri : Elmadag",
+    )
+    cells = anten_row_cells(row)
+    assert len(cells) == 16
+    assert cells[0] == ""  # A
+    assert cells[1] == "Roketsan"  # B ← Ana B
+    assert cells[2] == "Govde / SS5"  # C ← Ana F
+    assert cells[3] == ""  # D
+    assert cells[4] == "3"  # E ← Ana G
+    assert cells[5] == "19.12.2025"  # F ← Ana H
+    assert cells[6] == "7788"  # G ← Ana I, PO öneki yok
+    assert cells[7] == "23.01.2026"  # H ← Ana J
+    assert cells[8:12] == ["", "", "", ""]  # I–L
+    assert cells[12] == "yok"  # M
+    assert cells[13] == ""  # N
+    assert cells[14] == "GP2,C,K"  # O ← Ana R
+    assert cells[15].startswith("Sorumlu:")  # P ← Ana S
+    tsv = build_anten_sheets_tsv([row])
+    cols = tsv.split("\t")
+    assert cols[0] == ""
+    assert cols[1] == "Roketsan"
+    assert cols[12] == "yok"
+    html = build_anten_sheets_html([row])
+    assert "color:#cc0000" in html  # kritik kalite O sütununda
+
+
+def test_elektronik_copy_remaps_ana_columns():
+    row = OrderRow(
+        firma="Roketsan",
+        antsis_parca_no="ANT-1",
+        proje="Govde / SS5",
+        siparis_adedi="3",
+        siparis_tarihi="19.12.2025",
+        siparis_numarasi="PO383369",
+        aciklama="Sorumlu: Ada\nKalite Provizyonları: GP2,C,K\nSevk yeri : Elmadag",
+    )
+    cells = elektronik_row_cells(row)
+    assert len(cells) == 16
+    assert cells[0] == ""  # A
+    assert cells[1] == "ANT-1"  # B ← Ana C
+    assert cells[2] == "Roketsan"  # C ← Ana B
+    assert cells[3] == ""  # D
+    assert cells[4] == ""  # E
+    assert cells[5] == "3"  # F ← Ana G
+    assert cells[6] == ""  # G
+    assert cells[7] == "19.12.2025"  # H ← Ana H
+    assert cells[8] == "383369"  # I ← Ana I, PO yok
+    assert cells[9:15] == ["", "", "", "", "", ""]  # J–O
+    assert cells[15].startswith("Govde / SS5\nSorumlu:")
+    tsv = build_elektronik_sheets_tsv([row])
+    assert '"Govde / SS5\nSorumlu: Ada\nKalite Provizyonları: GP2,C,K\nSevk yeri : Elmadag"' in tsv
+    html = build_elektronik_sheets_html([row])
+    assert "Govde / SS5" in html
+    assert "color:#cc0000" in html
+
+
 def test_helpers_normalize_location_and_ss():
     assert normalize_uretim_yeri("161 - Roketsan Elmadağ") == "Elmadağ"
     assert siparis_satir_no_to_ss("13-1") == "SS13"
+    assert strip_po_prefix("PO383369") == "383369"
+    assert strip_po_prefix("PO-7788") == "7788"
+    assert strip_po_prefix("383369") == "383369"
 
 
 def test_extract_antsis_parca_no_underscore_and_hyphen():

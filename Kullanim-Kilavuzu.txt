@@ -2,7 +2,7 @@
   ANTSIS TEKLİF HAZIRLAMA — KULLANIM KILAVUZU
 ================================================================================
 
-Sürüm: 0.2.0
+Sürüm: 0.3.0
 Amaç: Google Sheets + Import Excel ile Antsis teklif formu (Excel + PDF) üretmek.
 
 

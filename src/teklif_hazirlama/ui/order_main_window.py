@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QMimeData, Qt
+from PySide6.QtCore import QMimeData, QSize, Qt
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -28,7 +28,14 @@ from teklif_hazirlama.core.quality_highlight import (
     format_aciklama_html,
     format_quality_html,
 )
-from teklif_hazirlama.ui.branding import app_icon, make_logo_label
+from teklif_hazirlama.ui.branding import (
+    app_icon,
+    excel_file_icon,
+    make_logo_label,
+    pdf_file_icon,
+    style_action_button,
+    style_file_button,
+)
 
 KALITE_COL = 17
 ACIKLAMA_COL = 18
@@ -42,7 +49,7 @@ class OrderMainWindow(QMainWindow):
         self.excel_path: str | None = None
         self.pdf_path: str | None = None
         self._rows: list[OrderRow] = []
-        self.setWindowTitle(app_window_title("Ana Sipariş İşleme"))
+        self.setWindowTitle(app_window_title("Antsis Sipariş İşleme"))
         self.setWindowIcon(app_icon())
         self._build_ui()
         self.showMaximized()
@@ -83,14 +90,20 @@ class OrderMainWindow(QMainWindow):
 
         pdf_row = QHBoxLayout()
         pdf_row.addWidget(self.pdf_label, 1)
-        btn_pdf = QPushButton("PDF Seç...")
+        btn_pdf = QPushButton(" PDF Seç...")
+        btn_pdf.setIcon(pdf_file_icon(20))
+        btn_pdf.setIconSize(QSize(20, 20))
+        style_file_button(btn_pdf)
         btn_pdf.clicked.connect(self._select_pdf)
         pdf_row.addWidget(btn_pdf)
         files_layout.addLayout(pdf_row)
 
         excel_row = QHBoxLayout()
         excel_row.addWidget(self.excel_label, 1)
-        btn_excel = QPushButton("Excel Seç...")
+        btn_excel = QPushButton(" Excel Seç...")
+        btn_excel.setIcon(excel_file_icon(20))
+        btn_excel.setIconSize(QSize(20, 20))
+        style_file_button(btn_excel)
         btn_excel.clicked.connect(self._select_excel)
         excel_row.addWidget(btn_excel)
         files_layout.addLayout(excel_row)
@@ -98,11 +111,21 @@ class OrderMainWindow(QMainWindow):
 
         action_row = QHBoxLayout()
         btn_parse = QPushButton("Oku / Birleştir")
+        style_action_button(btn_parse, primary=True)
         btn_parse.clicked.connect(self._parse_files)
-        btn_copy = QPushButton("Sipariş Kopyala")
-        btn_copy.clicked.connect(self._copy_rows)
+        btn_copy_main = QPushButton("Ana Sipariş Kopyala")
+        style_action_button(btn_copy_main)
+        btn_copy_main.clicked.connect(self._copy_rows)
+        btn_copy_anten = QPushButton("Anten Sipariş Kopyala")
+        style_action_button(btn_copy_anten)
+        btn_copy_anten.clicked.connect(self._copy_anten_rows)
+        btn_copy_elektronik = QPushButton("Elektronik Sipariş Kopyala")
+        style_action_button(btn_copy_elektronik)
+        btn_copy_elektronik.clicked.connect(self._copy_elektronik_rows)
         action_row.addWidget(btn_parse)
-        action_row.addWidget(btn_copy)
+        action_row.addWidget(btn_copy_main)
+        action_row.addWidget(btn_copy_anten)
+        action_row.addWidget(btn_copy_elektronik)
         action_row.addStretch()
         self.count_label = QLabel("0 satır")
         action_row.addWidget(self.count_label)
@@ -156,7 +179,7 @@ class OrderMainWindow(QMainWindow):
             return
         self._load_rows()
         self.status.setText(
-            "Satırlar oluşturuldu. Gerekirse hücreleri düzenleyip 'Sipariş Kopyala' kullanın."
+            "Satırlar oluşturuldu. Gerekirse hücreleri düzenleyip 'Ana Sipariş Kopyala' kullanın."
         )
 
     def _load_rows(self) -> None:
@@ -201,19 +224,40 @@ class OrderMainWindow(QMainWindow):
         self.table.setCellWidget(row, col, label)
 
     def _copy_rows(self) -> None:
+        self._copy_to_clipboard(
+            title="Ana Sipariş Kopyala",
+            text_builder=self.workflow.build_clipboard_text_from_rows,
+            html_builder=self.workflow.build_clipboard_html_from_rows,
+        )
+
+    def _copy_anten_rows(self) -> None:
+        self._copy_to_clipboard(
+            title="Anten Sipariş Kopyala",
+            text_builder=self.workflow.build_anten_clipboard_text_from_rows,
+            html_builder=self.workflow.build_anten_clipboard_html_from_rows,
+        )
+
+    def _copy_elektronik_rows(self) -> None:
+        self._copy_to_clipboard(
+            title="Elektronik Sipariş Kopyala",
+            text_builder=self.workflow.build_elektronik_clipboard_text_from_rows,
+            html_builder=self.workflow.build_elektronik_clipboard_html_from_rows,
+        )
+
+    def _copy_to_clipboard(self, *, title: str, text_builder, html_builder) -> None:
         if self.table.rowCount() == 0:
             QMessageBox.warning(self, "Eksik bilgi", "Önce satırları oluşturun.")
             return
         rows = self._rows_from_table()
-        text = self.workflow.build_clipboard_text_from_rows(rows)
-        html_text = self.workflow.build_clipboard_html_from_rows(rows)
+        text = text_builder(rows)
+        html_text = html_builder(rows)
         mime = QMimeData()
         mime.setText(text)
         mime.setHtml(html_text)
         QApplication.clipboard().setMimeData(mime)
         msg = f"{len(rows)} satır panoya kopyalandı (kritik kalite kodları kırmızı/kalın)."
         self.status.setText(msg)
-        QMessageBox.information(self, "Sipariş Kopyala", msg)
+        QMessageBox.information(self, title, msg)
 
     def _rows_from_table(self) -> list[OrderRow]:
         rows: list[OrderRow] = []

@@ -10,6 +10,7 @@ DATE_DOT_RE = re.compile(r"(\d{2})\.(\d{2})\.(\d{4})")
 SS_RE = re.compile(r"\bSS\s*(\d+)\b", re.IGNORECASE)
 SS_LINE_RE = re.compile(r"^SS\s*(\d+)\s+(.*)$", re.IGNORECASE)
 PO_RE = re.compile(r"\b(PO[- ]*\d+)\b", re.IGNORECASE)
+PO_PREFIX_RE = re.compile(r"^PO[- ]*", re.IGNORECASE)
 QUALITY_CODE_RE = re.compile(r"^[A-Z]{1,4}\d{0,2}$", re.IGNORECASE)
 REV_TOKEN_RE = re.compile(r"^[A-Z]\d{2}$", re.IGNORECASE)
 PART_NO_RE = re.compile(r"^\d{5,}$")
@@ -143,11 +144,16 @@ def _extract_labeled_po(lines: list[str]) -> str:
         window = " ".join(lines[index:index + 8])
         match = PO_RE.search(window)
         if match:
-            return match.group(1).replace(" ", "").upper()
+            return strip_po_prefix(match.group(1).replace(" ", "").upper())
         number_match = re.search(r"\b(\d{6,})\b", window)
         if number_match:
             return number_match.group(1)
     return ""
+
+
+def strip_po_prefix(value: str) -> str:
+    """PO383369 / PO-7788 → 383369 / 7788."""
+    return PO_PREFIX_RE.sub("", (value or "").strip())
 
 
 def _indexes_for_any_label(lines: list[str], labels: list[str]) -> list[int]:

@@ -5,6 +5,10 @@ from pathlib import Path
 
 from teklif_hazirlama.core.models import OrderRow
 from teklif_hazirlama.core.order_clipboard import (
+    build_anten_sheets_html,
+    build_anten_sheets_tsv,
+    build_elektronik_sheets_html,
+    build_elektronik_sheets_tsv,
     build_order_sheets_html,
     build_order_sheets_tsv,
 )
@@ -16,7 +20,7 @@ from teklif_hazirlama.core.order_excel_parser import (
     pad_musteri_parca_no,
     siparis_satir_no_to_ss,
 )
-from teklif_hazirlama.core.order_pdf_parser import OrderPdfParser
+from teklif_hazirlama.core.order_pdf_parser import OrderPdfParser, strip_po_prefix
 
 
 class OrderWorkflow:
@@ -59,7 +63,9 @@ class OrderWorkflow:
                     proje=build_proje_text(source),
                     siparis_adedi=str(source.miktar),
                     siparis_tarihi=getattr(pdf_header, "siparis_tarihi", "") if pdf_header else "",
-                    siparis_numarasi=getattr(pdf_header, "siparis_numarasi", "") if pdf_header else "",
+                    siparis_numarasi=strip_po_prefix(
+                        getattr(pdf_header, "siparis_numarasi", "") if pdf_header else ""
+                    ),
                     planlanan_sevk_tarihi=getattr(pdf_line, "planlanan_sevk_tarihi", ""),
                     sevk_tarihi="",
                     fatura_durumu="",
@@ -89,6 +95,18 @@ class OrderWorkflow:
 
     def build_clipboard_html_from_rows(self, rows: list[OrderRow]) -> str:
         return build_order_sheets_html(rows)
+
+    def build_anten_clipboard_text_from_rows(self, rows: list[OrderRow]) -> str:
+        return build_anten_sheets_tsv(rows)
+
+    def build_anten_clipboard_html_from_rows(self, rows: list[OrderRow]) -> str:
+        return build_anten_sheets_html(rows)
+
+    def build_elektronik_clipboard_text_from_rows(self, rows: list[OrderRow]) -> str:
+        return build_elektronik_sheets_tsv(rows)
+
+    def build_elektronik_clipboard_html_from_rows(self, rows: list[OrderRow]) -> str:
+        return build_elektronik_sheets_html(rows)
 
 
 def build_aciklama_text(
