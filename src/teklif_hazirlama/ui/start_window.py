@@ -12,8 +12,8 @@ from PySide6.QtWidgets import (
 
 from teklif_hazirlama import APP_NAME, __version__, app_window_title
 from teklif_hazirlama.ui.branding import app_icon, make_logo_label
-from teklif_hazirlama.ui.istek_window import IstekWindow
-from teklif_hazirlama.ui.main_window import MainWindow
+from teklif_hazirlama.ui.order_start_window import OrderStartWindow
+from teklif_hazirlama.ui.quote_start_window import QuoteStartWindow
 
 
 class StartWindow(QMainWindow):
@@ -53,32 +53,24 @@ class StartWindow(QMainWindow):
         title.setAlignment(Qt.AlignCenter)
         layout.addWidget(title)
 
-        btn_istek = QPushButton("Teklif Kaydı")
-        btn_istek.setMinimumHeight(40)
-        btn_istek.clicked.connect(self._open_istek)
-        layout.addWidget(btn_istek)
+        btn_quote = QPushButton("Antsis Teklif Hazırlama")
+        btn_quote.setMinimumHeight(40)
+        btn_quote.clicked.connect(self._open_quote)
+        layout.addWidget(btn_quote)
 
-        btn_form = QPushButton("İlk Teklif Formu Hazırlama")
-        btn_form.setMinimumHeight(40)
-        btn_form.clicked.connect(self._open_form)
-        layout.addWidget(btn_form)
+        btn_order = QPushButton("Antsis Sipariş İşleme")
+        btn_order.setMinimumHeight(40)
+        btn_order.clicked.connect(self._open_order)
+        layout.addWidget(btn_order)
 
-        btn_revise = QPushButton("Revize Teklif Formu Hazırlama")
-        btn_revise.setMinimumHeight(40)
-        btn_revise.clicked.connect(self._open_revise)
-        layout.addWidget(btn_revise)
-
-    def _open_istek(self) -> None:
-        self._open_child(IstekWindow(on_back=self._back_to_start), maximized=False)
-
-    def _open_form(self) -> None:
+    def _open_quote(self) -> None:
         self._open_child(
-            MainWindow(on_back=self._back_to_start, mode="normal"), maximized=True
+            QuoteStartWindow(on_back=self._back_to_start), maximized=False
         )
 
-    def _open_revise(self) -> None:
+    def _open_order(self) -> None:
         self._open_child(
-            MainWindow(on_back=self._back_to_start, mode="revise"), maximized=True
+            OrderStartWindow(on_back=self._back_to_start), maximized=False
         )
 
     def _open_child(self, window: QMainWindow, *, maximized: bool) -> None:

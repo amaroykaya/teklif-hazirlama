@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QMimeData, Qt
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -123,7 +123,13 @@ class IstekWindow(QMainWindow):
 
     def _on_customer_changed(self) -> None:
         code = self.customer_combo.currentData() or ""
-        auto = generate_teklif_no(code)
+        auto = ""
+        if code:
+            try:
+                customer = self.workflow.customers.load(code)
+                auto = generate_teklif_no(customer.teklif_no_oneki)
+            except FileNotFoundError:
+                auto = ""
         if auto:
             self.teklif_no.setText(auto)
         self._reload_hitap_kisileri()
@@ -359,7 +365,7 @@ class IstekWindow(QMainWindow):
             QMessageBox.warning(self, "Eksik bilgi", "Lütfen müşteri teklif no girin.")
             return
         try:
-            text = self.workflow.build_istek_clipboard_text(
+            text, html_text = self.workflow.build_istek_clipboard_payload(
                 customer_code=code,
                 hazirlayan=self.hazirlayan.currentText(),
                 import_excel_path=self.import_path,
@@ -372,11 +378,15 @@ class IstekWindow(QMainWindow):
             QMessageBox.critical(self, "Hata", str(exc))
             return
 
-        QApplication.clipboard().setText(text)
+        mime = QMimeData()
+        mime.setText(text)
+        mime.setHtml(html_text)
+        QApplication.clipboard().setMimeData(mime)
         row_count = text.count("\n") + (1 if text.strip() else 0)
         msg = (
             f"{row_count} satır panoya kopyalandı.\n"
-            "Google Sheets'te en alt satırın A hücresine yapıştırın."
+            "Google Sheets'te en alt satırın A hücresine yapıştırın.\n"
+            "R sütunundaki kritik kalite kodları kırmızı/kalın gelir."
         )
         self.status.setText(msg)
         QMessageBox.information(self, "Teklif Kaydı", msg)

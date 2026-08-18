@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import html
 from datetime import date
 from decimal import Decimal
 
 from teklif_hazirlama.core.models import CustomerConfig, QuoteHeader, QuoteLine
+from teklif_hazirlama.core.quality_highlight import format_quality_html
 
 
 def format_money_plain(amount: Decimal) -> str:
@@ -81,13 +83,36 @@ def format_year_month_tr(value: date | None = None) -> str:
     return f"{d.year} {AY_ADLARI[d.month]}"
 
 
-def generate_teklif_no(customer_code: str, tarih: date | None = None) -> str:
-    """Roketsan: RKTSN-YYAA-GG (örn. 11.07.2026 → RKTSN-2607-11)."""
-    code = (customer_code or "").strip().lower()
-    if code != "roketsan":
+def normalize_teklif_no_oneki(value: str) -> str:
+    return "".join((value or "").split()).upper()
+
+
+def generate_teklif_no(oneki: str, tarih: date | None = None) -> str:
+    """Önek + YYAA-GG (örn. 11.07.2026 → RKTSN-2607-11)."""
+    prefix = normalize_teklif_no_oneki(oneki)
+    if not prefix:
         return ""
     d = tarih or date.today()
-    return f"RKTSN-{d.year % 100:02d}{d.month:02d}-{d.day:02d}"
+    return f"{prefix}-{d.year % 100:02d}{d.month:02d}-{d.day:02d}"
+
+
+def resolve_teklif_no_for_copy(
+    customer: CustomerConfig,
+    teklif_no: str,
+    tarih: date | None = None,
+) -> str:
+    """
+    Kopyada G/I: önek müşterininkiyle uyuyorsa form değerini koru;
+    RKTSN dururken müşteri TLCM ise yeniden üret.
+    """
+    current = (teklif_no or "").strip()
+    prefix = normalize_teklif_no_oneki(customer.teklif_no_oneki)
+    if not prefix:
+        return current
+    current_prefix = current.split("-", 1)[0].upper() if current else ""
+    if current and current_prefix == prefix:
+        return current
+    return generate_teklif_no(prefix, tarih)
 
 
 def short_firma_name(customer: CustomerConfig) -> str:
@@ -127,7 +152,7 @@ def build_sheets_tsv(
     """Google Sheets A hücresine yapıştırılacak TSV (A..P); A ve B boş."""
     firma = short_firma_name(customer)
     tarih = format_date_tr(header.tarih)
-    teklif_no = header.teklif_no.strip()
+    teklif_no = resolve_teklif_no_for_copy(customer, header.teklif_no, header.tarih)
     istek_no = header.istek_no.strip()
     revizyon = next_revizyon_for_copy(header.revizyon)
     initials = hazirlayan_initials(header.hazirlayan)
@@ -157,6 +182,27 @@ def build_sheets_tsv(
     return "\n".join(rows)
 
 
+def istek_row_matrix(
+    customer: CustomerConfig,
+    lines: list[QuoteLine],
+    *,
+    hazirlayan: str,
+    teklif_no: str,
+    musteri_teklif_no: str,
+    hitap_kisi: str,
+    tarih: date | None = None,
+) -> list[list[str]]:
+    return _istek_row_cells(
+        customer,
+        lines,
+        hazirlayan=hazirlayan,
+        teklif_no=teklif_no,
+        musteri_teklif_no=musteri_teklif_no,
+        hitap_kisi=hitap_kisi,
+        tarih=tarih,
+    )
+
+
 def build_istek_sheets_tsv(
     customer: CustomerConfig,
     lines: list[QuoteLine],
@@ -168,43 +214,103 @@ def build_istek_sheets_tsv(
     tarih: date | None = None,
 ) -> str:
     """İlk teklif isteği — Google Sheets A hücresine yapıştırılacak TSV (A..W)."""
+    rows = istek_row_matrix(
+        customer,
+        lines,
+        hazirlayan=hazirlayan,
+        teklif_no=teklif_no,
+        musteri_teklif_no=musteri_teklif_no,
+        hitap_kisi=hitap_kisi,
+        tarih=tarih,
+    )
+    return "\n".join("\t".join(cells) for cells in rows)
+
+
+def build_istek_sheets_html(
+    customer: CustomerConfig,
+    lines: list[QuoteLine],
+    *,
+    hazirlayan: str,
+    teklif_no: str,
+    musteri_teklif_no: str,
+    hitap_kisi: str,
+    tarih: date | None = None,
+) -> str:
+    """Teklif kaydı panosu — R sütununda kritik kalite kodları kırmızı+kalın."""
+    rows = istek_row_matrix(
+        customer,
+        lines,
+        hazirlayan=hazirlayan,
+        teklif_no=teklif_no,
+        musteri_teklif_no=musteri_teklif_no,
+        hitap_kisi=hitap_kisi,
+        tarih=tarih,
+    )
+    body_rows: list[str] = []
+    for cells in rows:
+        tds: list[str] = []
+        for index, value in enumerate(cells):
+            if index == 17:  # R — Kalite Provizyonları
+                inner = format_quality_html(value)
+            else:
+                inner = html.escape(value).replace("\n", "<br>")
+            tds.append(f"<td>{inner}</td>")
+        body_rows.append("<tr>" + "".join(tds) + "</tr>")
+    return (
+        '<html><body><table border="0" cellspacing="0" cellpadding="0">'
+        + "".join(body_rows)
+        + "</table></body></html>"
+    )
+
+
+def _istek_row_cells(
+    customer: CustomerConfig,
+    lines: list[QuoteLine],
+    *,
+    hazirlayan: str,
+    teklif_no: str,
+    musteri_teklif_no: str,
+    hitap_kisi: str,
+    tarih: date | None = None,
+) -> list[list[str]]:
     bugun = tarih or date.today()
     yil_ay = format_year_month_tr(bugun)
     firma = short_firma_name(customer)
     bugun_text = format_date_tr(bugun)
     initials = hazirlayan_initials(hazirlayan)
-    teklif = teklif_no.strip()
+    teklif = resolve_teklif_no_for_copy(customer, teklif_no, bugun)
     musteri_teklif = musteri_teklif_no.strip()
     hitap = hitap_kisi.strip()
 
-    rows: list[str] = []
+    rows: list[list[str]] = []
     for line in lines:
         stok_kodu = line.stok_kodu.strip()
         stok_aciklama = line.stok_aciklama or line.aciklama.split("\n", 1)[0]
-        cells = [
-            yil_ay,  # A
-            "",  # B
-            firma,  # C
-            "",  # D
-            stok_kodu,  # E
-            stok_aciklama,  # F — Stok Tanımı / Stok Kodu
-            str(line.adet),  # G
-            bugun_text,  # H
-            teklif,  # I
-            musteri_teklif,  # J — müşteri teklif no (elle)
-            format_date_tr(line.termin_tarihi),  # K
-            format_money_plain(line.birim_fiyat),  # L
-            format_money_plain(line.toplam_fiyat),  # M
-            "1",  # N — revizyon
-            initials,  # O
-            "",  # P
-            "",  # Q
-            line.kalite_provizyonlari,  # R
-            line.teknik_resim_sartname,  # S
-            line.kalem_revizyon,  # T
-            "",  # U
-            "",  # V
-            hitap,  # W
-        ]
-        rows.append("\t".join(cells))
-    return "\n".join(rows)
+        rows.append(
+            [
+                yil_ay,  # A
+                "",  # B
+                firma,  # C
+                "",  # D
+                stok_kodu,  # E
+                stok_aciklama,  # F — Stok Tanımı / Stok Kodu
+                str(line.adet),  # G
+                bugun_text,  # H
+                teklif,  # I
+                musteri_teklif,  # J — müşteri teklif no (elle)
+                format_date_tr(line.termin_tarihi),  # K
+                format_money_plain(line.birim_fiyat),  # L
+                format_money_plain(line.toplam_fiyat),  # M
+                "1",  # N — revizyon
+                initials,  # O
+                "",  # P
+                "",  # Q
+                line.kalite_provizyonlari,  # R
+                line.teknik_resim_sartname,  # S
+                line.kalem_revizyon,  # T
+                "",  # U
+                "",  # V
+                hitap,  # W
+            ]
+        )
+    return rows

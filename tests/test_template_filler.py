@@ -117,6 +117,80 @@ def test_aciklama_row_autofit_and_wrap():
     assert (ws.row_dimensions[27].height or 0) >= 45
 
 
+def test_single_line_summary_has_one_toplam_and_tr_dates():
+    """Tek satırda boş ürün satırı silinir; şablon Toplam formülü (#DEĞER!) kalmaz."""
+    from datetime import date
+    from decimal import Decimal
+
+    from teklif_hazirlama.core.models import QuoteDocument, QuoteHeader, QuoteLine
+    from teklif_hazirlama.core.template_filler import (
+        DATE_NUMBER_FORMAT,
+        TemplateFiller,
+        load_default_sartlar,
+    )
+    from teklif_hazirlama.infrastructure.storage import CustomerRepository
+
+    cust = CustomerRepository().load("roketsan")
+    lines = [
+        QuoteLine(
+            row_number=1,
+            adet=5,
+            ants_is_urun_kodu="ANT-1",
+            aciklama="urun",
+            birim_fiyat=Decimal("800"),
+            toplam_fiyat=Decimal("4000"),
+        )
+    ]
+    header = QuoteHeader(
+        teklif_no="TEST-1LINE-TOPLAM",
+        tarih=date(2026, 7, 9),
+        hitap_kisi="Test",
+        hitap_adres_satirlari=[],
+        hitap_telefon="",
+        hazirlayan="Alican Uzun",
+        teslimat="Yurtiçi Kargo",
+        teslimat_sekli="Kapı Teslim",
+        odeme_sekli="Peşin",
+        istek_no="QR1",
+    )
+    doc = QuoteDocument(
+        customer=cust,
+        header=header,
+        lines=lines,
+        ara_toplam=Decimal("4000"),
+        kdv=Decimal("800"),
+        toplam=Decimal("4800"),
+        teslim_tarihi_text="x",
+        sartlar=load_default_sartlar(),
+    )
+    out = Path("tests/output")
+    out.mkdir(exist_ok=True)
+    path = out / "test-1line-toplam.xlsx"
+    TemplateFiller().fill(doc, path)
+    ws = openpyxl.load_workbook(path)["Teklif"]
+
+    assert ws["G28"].value == "Ara Toplam"
+    assert ws["G29"].value == "KDV (%20)"
+    assert ws["G30"].value == "Toplam"
+    assert ws["H30"].value == "$4.800,00"
+    toplam_labels = [
+        ws.cell(row, 7).value
+        for row in range(27, 40)
+        if str(ws.cell(row, 7).value or "").strip() == "Toplam"
+    ]
+    assert toplam_labels == ["Toplam"]
+    leftover_formulas = [
+        ws.cell(row, 8).value
+        for row in range(28, 35)
+        if isinstance(ws.cell(row, 8).value, str) and str(ws.cell(row, 8).value).startswith("=")
+    ]
+    assert leftover_formulas == []
+    assert ws["H8"].value.date() == date(2026, 7, 9)
+    assert ws["H8"].number_format == DATE_NUMBER_FORMAT
+    assert ws["H10"].value.date() == date(2026, 8, 8)
+    assert ws["H10"].number_format == DATE_NUMBER_FORMAT
+
+
 def test_teklif_no_widens_h_column():
     fixture = Path("tests/fixtures/QBR2525.xlsx")
     if not fixture.exists():
@@ -357,6 +431,10 @@ def test_revize_template_has_indirim_columns():
     assert ws["E27"].value == 100.0
     assert ws["G27"].value == 100.0
     assert str(ws["F27"].value).replace(" ", "") == "=1-(G27/E27)"
+    assert ws["G28"].value == "Ara Toplam"
+    assert ws["G30"].value == "Toplam"
+    assert ws["H8"].number_format == "DD.MM.YYYY"
+    assert ws["H10"].value.date() == date(2026, 8, 11)
     assert "ANT-" in str(ws.cell(_find_sartlar_row(ws) + 1, 1).value or "")
 
 

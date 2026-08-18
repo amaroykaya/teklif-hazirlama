@@ -573,7 +573,7 @@ class MainWindow(QMainWindow):
             return
         customer = self.workflow.customers.load(code)
         self.odeme_sekli.setPlainText(customer.varsayilan_odeme_sekli.strip())
-        auto = generate_teklif_no(code)
+        auto = generate_teklif_no(customer.teklif_no_oneki)
         if auto:
             self.teklif_no.setText(auto)
         self._reload_hitap_kisileri()

@@ -7,10 +7,21 @@ from teklif_hazirlama.core.models import HitapKisi
 from teklif_hazirlama.infrastructure.storage import CustomerRepository, LocalStore, load_hitap_list
 
 
-def test_builtin_customers_only_roketsan():
-    repo = CustomerRepository()
+def test_builtin_customers_only_roketsan(tmp_path):
+    repo = CustomerRepository(
+        customers_dir=Path("config/customers"),
+        user_customers_dir=tmp_path / "customers",
+    )
     names = {c.code for c in repo.list_customers()}
     assert names == {"roketsan"}
+
+
+def test_roketsan_yaml_has_teklif_no_oneki(tmp_path):
+    repo = CustomerRepository(
+        customers_dir=Path("config/customers"),
+        user_customers_dir=tmp_path / "customers",
+    )
+    assert repo.load("roketsan").teklif_no_oneki == "RKTSN"
 
 
 def test_save_custom_customer(tmp_path):

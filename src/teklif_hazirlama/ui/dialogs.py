@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from teklif_hazirlama.core.models import CustomerConfig, HitapKisi
+from teklif_hazirlama.core.sheets_clipboard import normalize_teklif_no_oneki
 from teklif_hazirlama.infrastructure.storage import slugify_code
 
 
@@ -86,6 +87,10 @@ class CustomerDialog(QDialog):
         self.adres3 = QLineEdit()
         self.telefon = QLineEdit(customer.firma.get("telefon", "") if customer else "")
         self.para_birimi = QLineEdit(customer.para_birimi if customer else "USD")
+        self.teklif_no_oneki = QLineEdit(
+            customer.teklif_no_oneki if customer else ""
+        )
+        self.teklif_no_oneki.setPlaceholderText("ör. RKTSN, TLCM")
         self.gecerlilik = QSpinBox()
         self.gecerlilik.setRange(1, 365)
         self.gecerlilik.setValue(customer.gecerlilik_gun if customer else 30)
@@ -108,6 +113,7 @@ class CustomerDialog(QDialog):
         form.addRow("Adres 3", self.adres3)
         form.addRow("Telefon", self.telefon)
         form.addRow("Para Birimi", self.para_birimi)
+        form.addRow("Teklif No öneki", self.teklif_no_oneki)
         form.addRow("Geçerlilik (gün)", self.gecerlilik)
         form.addRow("Varsayılan Ödeme Şekli", self.odeme)
 
@@ -159,6 +165,7 @@ class CustomerDialog(QDialog):
             name=name,
             gecerlilik_gun=self.gecerlilik.value(),
             para_birimi=self.para_birimi.text().strip() or "USD",
+            teklif_no_oneki=normalize_teklif_no_oneki(self.teklif_no_oneki.text()),
             firma={
                 "unvan": self.unvan.text().strip() or name,
                 "adres_satirlari": adres,

@@ -5,6 +5,7 @@ from pathlib import Path
 from teklif_hazirlama.application.quote_workflow import QuoteRequest, QuoteWorkflow
 from teklif_hazirlama.core.models import CustomerConfig, QuoteHeader, QuoteLine
 from teklif_hazirlama.core.sheets_clipboard import (
+    build_istek_sheets_html,
     build_istek_sheets_tsv,
     build_sheets_tsv,
     format_money_plain,
@@ -26,11 +27,42 @@ def test_format_year_month_tr():
     assert format_year_month_tr(date(2026, 7, 11)) == "2026 Temmuz"
 
 
-def test_generate_teklif_no_roketsan():
-    from teklif_hazirlama.core.sheets_clipboard import generate_teklif_no
+def test_generate_teklif_no_from_oneki():
+    from teklif_hazirlama.core.sheets_clipboard import (
+        generate_teklif_no,
+        normalize_teklif_no_oneki,
+        resolve_teklif_no_for_copy,
+    )
 
-    assert generate_teklif_no("roketsan", date(2026, 7, 11)) == "RKTSN-2607-11"
-    assert generate_teklif_no("aselsan", date(2026, 7, 11)) == ""
+    assert normalize_teklif_no_oneki(" tlcm ") == "TLCM"
+    assert generate_teklif_no("RKTSN", date(2026, 7, 11)) == "RKTSN-2607-11"
+    assert generate_teklif_no("TLCM", date(2026, 7, 11)) == "TLCM-2607-11"
+    assert generate_teklif_no("", date(2026, 7, 11)) == ""
+
+    tualcom = CustomerConfig(
+        code="tualcom",
+        name="Tualcom",
+        gecerlilik_gun=30,
+        teklif_no_oneki="TLCM",
+        firma={"unvan": "Tualcom", "adres_satirlari": [], "telefon": ""},
+    )
+    assert (
+        resolve_teklif_no_for_copy(tualcom, "RKTSN-2607-11", date(2026, 7, 11))
+        == "TLCM-2607-11"
+    )
+    assert (
+        resolve_teklif_no_for_copy(tualcom, "TLCM-99", date(2026, 7, 11)) == "TLCM-99"
+    )
+    roketsan = CustomerConfig(
+        code="roketsan",
+        name="Roketsan",
+        gecerlilik_gun=30,
+        teklif_no_oneki="RKTSN",
+        firma={"unvan": "Roketsan", "adres_satirlari": [], "telefon": ""},
+    )
+    assert (
+        resolve_teklif_no_for_copy(roketsan, "RKTSN-1", date(2026, 7, 11)) == "RKTSN-1"
+    )
 
 
 def test_format_teklif_no_with_revizyon():
@@ -61,6 +93,7 @@ def test_build_sheets_tsv_columns():
         code="roketsan",
         name="Roketsan Uzun Unvan A.Ş.",
         gecerlilik_gun=30,
+        teklif_no_oneki="RKTSN",
         firma={"unvan": "Roketsan", "adres_satirlari": [], "telefon": ""},
     )
     header = QuoteHeader(
@@ -104,6 +137,39 @@ def test_build_sheets_tsv_columns():
     assert cols[13] == ""  # N
     assert cols[14] == ""  # O
     assert cols[15] == "Sorumlusu : İremsu Yazıcı"  # P
+
+
+def test_build_sheets_tsv_rewrites_mismatched_prefix():
+    customer = CustomerConfig(
+        code="tualcom",
+        name="Tualcom",
+        gecerlilik_gun=30,
+        teklif_no_oneki="TLCM",
+        firma={"unvan": "Tualcom", "adres_satirlari": [], "telefon": ""},
+    )
+    header = QuoteHeader(
+        teklif_no="RKTSN-2607-11",
+        tarih=date(2026, 7, 11),
+        hitap_kisi="Test",
+        hazirlayan="Alican Uzun",
+        teslimat="Yurtiçi",
+        teslimat_sekli="Kapı",
+        odeme_sekli="Peşin",
+        istek_no="QR1",
+    )
+    lines = [
+        QuoteLine(
+            row_number=1,
+            adet=1,
+            ants_is_urun_kodu="ANT-1",
+            aciklama="urun",
+            birim_fiyat=Decimal("1"),
+            toplam_fiyat=Decimal("1"),
+        )
+    ]
+    cols = build_sheets_tsv(customer, header, lines).split("\t")
+    assert cols[2] == "tualcom"
+    assert cols[6] == "TLCM-2607-11"
 
 
 def test_workflow_clipboard_from_real_import():
@@ -196,3 +262,39 @@ def test_build_istek_sheets_tsv():
     assert cols[20] == ""  # U
     assert cols[21] == ""  # V
     assert cols[22] == "İremsu Yazıcı"  # W
+
+
+def test_build_istek_sheets_html_highlights_quality_codes():
+    customer = CustomerConfig(
+        code="roketsan",
+        name="Roketsan",
+        gecerlilik_gun=30,
+        firma={"unvan": "Roketsan", "adres_satirlari": [], "telefon": ""},
+    )
+    lines = [
+        QuoteLine(
+            row_number=3,
+            adet=1,
+            ants_is_urun_kodu="ANT-1",
+            aciklama="x",
+            birim_fiyat=Decimal("1"),
+            toplam_fiyat=Decimal("1"),
+            stok_kodu="001",
+            stok_aciklama="urun / 001",
+            kalite_provizyonlari="GP2,C,CC,P,K",
+        )
+    ]
+    html = build_istek_sheets_html(
+        customer,
+        lines,
+        hazirlayan="Alican Uzun",
+        teklif_no="ANT1",
+        musteri_teklif_no="M1",
+        hitap_kisi="Ali",
+        tarih=date(2026, 7, 11),
+    )
+    assert '<span style="color:#cc0000;font-weight:bold">C</span>' in html
+    assert '<span style="color:#cc0000;font-weight:bold">P</span>' in html
+    assert '<span style="color:#cc0000;font-weight:bold">K</span>' in html
+    assert "font-weight:bold\">CC" not in html
+    assert "font-weight:bold\">GP2" not in html

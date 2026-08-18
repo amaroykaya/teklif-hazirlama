@@ -14,6 +14,7 @@ from teklif_hazirlama.core.import_parser import ImportParser
 from teklif_hazirlama.core.models import QuoteHeader, QuoteLine, SheetsRow
 from teklif_hazirlama.core.quote_engine import QuoteEngine
 from teklif_hazirlama.core.sheets_clipboard import (
+    build_istek_sheets_html,
     build_istek_sheets_tsv,
     build_sheets_tsv,
     format_teklif_no_with_revizyon,
@@ -444,6 +445,28 @@ class QuoteWorkflow:
         hitap_kisi: str,
         tarih: date | None = None,
     ) -> str:
+        text, _html = self.build_istek_clipboard_payload(
+            customer_code=customer_code,
+            hazirlayan=hazirlayan,
+            import_excel_path=import_excel_path,
+            teklif_no=teklif_no,
+            musteri_teklif_no=musteri_teklif_no,
+            hitap_kisi=hitap_kisi,
+            tarih=tarih,
+        )
+        return text
+
+    def build_istek_clipboard_payload(
+        self,
+        *,
+        customer_code: str,
+        hazirlayan: str,
+        import_excel_path: str,
+        teklif_no: str,
+        musteri_teklif_no: str,
+        hitap_kisi: str,
+        tarih: date | None = None,
+    ) -> tuple[str, str]:
         customer = self.customers.load(customer_code)
         try:
             lines, _warnings = self.import_parser.parse(
@@ -461,12 +484,14 @@ class QuoteWorkflow:
             raise ValueError("Müşteri Teklif No zorunludur")
         if not hitap_kisi.strip():
             raise ValueError("Hitap kişisi zorunludur")
-        return build_istek_sheets_tsv(
-            customer,
-            lines,
+        kwargs = dict(
             hazirlayan=hazirlayan,
             teklif_no=teklif_no,
             musteri_teklif_no=musteri_teklif_no,
             hitap_kisi=hitap_kisi,
             tarih=tarih,
+        )
+        return (
+            build_istek_sheets_tsv(customer, lines, **kwargs),
+            build_istek_sheets_html(customer, lines, **kwargs),
         )

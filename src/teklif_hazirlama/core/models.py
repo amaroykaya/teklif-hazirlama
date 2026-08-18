@@ -11,6 +11,7 @@ class CustomerConfig(BaseModel):
     name: str
     gecerlilik_gun: int
     para_birimi: str = "USD"
+    teklif_no_oneki: str = ""
     firma: dict
     varsayilan_odeme_sekli: str = ""
 
@@ -34,6 +35,53 @@ class SheetsRow(BaseModel):
     firma: str = ""
     proje_tanimi: str = ""
     raw: dict[str, str] = Field(default_factory=dict)
+
+
+class OrderExcelRow(BaseModel):
+    row_number: int
+    siparis_satir_no: str = ""
+    stok_kodu: str = ""
+    stok_tanimi: str = ""
+    teknik_resim: str = ""
+    urun_revizyonu: str = ""
+    proje_kodu: str = ""
+    miktar: int = 0
+    birim_fiyat: Decimal = Decimal("0")
+    uretim_yeri: str = ""
+
+
+class OrderPdfHeader(BaseModel):
+    siparis_tarihi: str = ""
+    siparis_numarasi: str = ""
+    buyer: str = ""
+
+
+class OrderPdfLine(BaseModel):
+    ss_no: str
+    planlanan_sevk_tarihi: str = ""
+    kalite_provizyonlari: str = ""
+
+
+class OrderRow(BaseModel):
+    no: str = ""
+    firma: str = ""
+    antsis_parca_no: str = ""
+    siparis_satir_no: str = ""
+    musteri_parca_no: str = ""
+    proje: str = ""
+    siparis_adedi: str = ""
+    siparis_tarihi: str = ""
+    siparis_numarasi: str = ""
+    planlanan_sevk_tarihi: str = ""
+    sevk_tarihi: str = ""
+    fatura_durumu: str = ""
+    birim_fiyat: str = ""
+    toplam_fiyat: str = ""
+    sevkiyata_kalan_sure: str = ""
+    teknik_resim: str = ""
+    urun_revizyonu: str = ""
+    kalite_provizyonlari: str = ""
+    aciklama: str = ""
 
 
 class QuoteLine(BaseModel):

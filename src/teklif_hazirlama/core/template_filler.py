@@ -20,6 +20,7 @@ LINE_HEIGHT_FACTOR = 1.45
 # Excel genişlik birimi gerçek karakter sığmasından iyimser; güven payı bırak.
 WIDTH_CHAR_FACTOR = 0.72
 ROW_HEIGHT_PADDING = 6.0
+DATE_NUMBER_FORMAT = "DD.MM.YYYY"
 
 
 class TemplateFiller:
@@ -54,6 +55,7 @@ class TemplateFiller:
 
         n = len(document.lines)
         extra = max(0, n - self.TEMPLATE_PRODUCT_ROWS)
+        unused = max(0, self.TEMPLATE_PRODUCT_ROWS - n) if n else 0
         if extra:
             ws.insert_rows(self.PRODUCT_FIRST_ROW + self.TEMPLATE_PRODUCT_ROWS, extra)
             for i in range(extra):
@@ -68,6 +70,9 @@ class TemplateFiller:
                 if self.revise:
                     ws[f"F{row}"] = f"=1-(G{row}/E{row})"
                     ws[f"H{row}"] = f"=A{row}*G{row}"
+        elif unused:
+            # Şablon 2 ürün satırlı; tek satırda boş satır + eski Toplam formülü (#DEĞER!) kalmasın.
+            ws.delete_rows(self.PRODUCT_FIRST_ROW + n, unused)
 
         summary_row = self.PRODUCT_FIRST_ROW + n
         customer = document.customer
@@ -75,8 +80,10 @@ class TemplateFiller:
         engine = QuoteEngine()
 
         ws["H8"] = header.tarih
+        ws["H8"].number_format = DATE_NUMBER_FORMAT
         ws["H9"] = header.teklif_no
         ws["H10"] = engine.gecerlilik_tarihi(customer, header.tarih)
+        ws["H10"].number_format = DATE_NUMBER_FORMAT
         ws["H11"] = header.hazirlayan
         self._fit_teklif_no_column(ws, header.teklif_no)
         ws["A14"] = f"Sayın {header.hitap_kisi}"
