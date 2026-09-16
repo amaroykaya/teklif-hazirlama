@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "teklif-hazirlama"
-version = "0.3.0"
-description = "Antsis müşteri bazlı teklif formu üretim uygulaması"
+version = "0.3.1"
+description = "Antsis Teklif & Sipariş masaüstü uygulaması"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

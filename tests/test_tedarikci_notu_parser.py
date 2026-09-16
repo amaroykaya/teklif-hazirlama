@@ -50,3 +50,16 @@ def test_teslim_tarihi_rejoins_broken_multiline_same_code():
     ]
     text = build_teslim_tarihi_text(parcalar)
     assert "ANT5306 - 3 adet T0+14 Hafta, 2 adet T0+15 Hafta" in text
+
+
+def test_teslim_tarihi_dedupes_identical_lines():
+    parcalar = [
+        "ANT-828B - 3 adet T0+34 Hafta, 4 adet T0+40 Hafta",
+        "ANT-828B - 3 adet T0+34 Hafta, 4 adet T0+40 Hafta",
+        "ANT-OTHER - 1 adet T0+10 Hafta",
+    ]
+    text = build_teslim_tarihi_text(parcalar)
+    assert text.count("ANT-828B - 3 adet T0+34 Hafta, 4 adet T0+40 Hafta") == 1
+    assert "ANT-OTHER - 1 adet T0+10 Hafta" in text
+    assert text.count("T0: Sipariş Onay Tarihi") == 1
+    assert text.startswith("ANT-828B")

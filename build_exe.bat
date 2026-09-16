@@ -1,7 +1,15 @@
 @echo off
 REM Exe uretimi — gelistirme icin run.bat kullanmaya devam edin.
-REM Cikti: dist\teklif-hazirlamaV1.exe
+REM Cikti: dist\teklif-hazirlama-<surum>.exe  (pyproject.toml version)
 cd /d "%~dp0"
+
+for /f "usebackq delims=" %%V in (`python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])"`) do set APP_VER=%%V
+if not defined APP_VER (
+    echo Surum pyproject.toml'dan okunamadi.
+    pause
+    exit /b 1
+)
+set EXE_NAME=teklif-hazirlama-%APP_VER%
 
 python -m pip install -q "pyinstaller>=6.0"
 if errorlevel 1 (
@@ -12,7 +20,7 @@ if errorlevel 1 (
 
 REM Sadece GUI icin gereken Qt paketleri (tum PySide6 toplanmaz → daha kucuk exe)
 python -m PyInstaller --noconfirm --clean --windowed --onefile ^
-  --name teklif-hazirlamaV1 ^
+  --name %EXE_NAME% ^
   --paths src ^
   --add-data "assets;assets" ^
   --add-data "config;config" ^
@@ -28,7 +36,7 @@ if errorlevel 1 (
 )
 
 echo.
-echo Hazir: %~dp0dist\teklif-hazirlamaV1.exe
+echo Hazir: %~dp0dist\%EXE_NAME%.exe
 echo Bu dosyayi arkadasina atabilirsin. run.bat ve kaynak kod ayni kaldi.
 echo.
 pause

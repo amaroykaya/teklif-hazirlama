@@ -1,6 +1,6 @@
 # Teklif Hazırlama
 
-Antsis müşteri bazlı teklif formu üretim uygulaması (Windows masaüstü).
+Antsis Teklif & Sipariş masaüstü uygulaması (Windows).
 
 ## Kurulum
 

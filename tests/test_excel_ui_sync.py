@@ -90,6 +90,42 @@ def test_sync_updates_existing_row(tmp_path):
     wb.close()
 
 
+def test_sync_revise_writes_indirimli_price(tmp_path):
+    """Revize: doldurulmuş Excel Fiyat = indirimli (güncel), eski birim değil."""
+    path = tmp_path / "filled-revise.xlsx"
+    _make_erp(path)
+    lines = [
+        QuoteLine(
+            row_number=1,
+            adet=2,
+            ants_is_urun_kodu="ANT-1",
+            aciklama="Urun A / 002525",
+            birim_fiyat=Decimal("100.00"),  # eski
+            toplam_fiyat=Decimal("160.00"),  # 80 * 2
+            stok_kodu="002525",
+            indirimli_birim_fiyat=Decimal("80.00"),  # revize
+        ),
+        QuoteLine(
+            row_number=2,
+            adet=1,
+            ants_is_urun_kodu="B-CODE",
+            aciklama="Urun B / 999999",
+            birim_fiyat=Decimal("50"),
+            toplam_fiyat=Decimal("45"),
+            stok_kodu="999999",
+            indirimli_birim_fiyat=Decimal("45"),
+        ),
+    ]
+    sync_quote_lines_to_import_excel(path, lines)
+    wb = load_workbook(path, data_only=True)
+    ws = wb.active
+    assert float(ws.cell(3, 5).value) == 80.0
+    assert float(ws.cell(3, 6).value) == 160.0
+    assert float(ws.cell(4, 5).value) == 45.0
+    assert float(ws.cell(4, 6).value) == 45.0
+    wb.close()
+
+
 def test_sync_adds_and_deletes_rows(tmp_path):
     path = tmp_path / "filled.xlsx"
     _make_erp(path)

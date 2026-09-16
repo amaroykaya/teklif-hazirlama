@@ -1,8 +1,8 @@
-"""Teklif Hazırlama uygulaması."""
+"""Antsis Teklif & Sipariş uygulaması."""
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
 
-APP_NAME = "Antsis Teklif Hazırlama"
+APP_NAME = "Antsis Teklif & Sipariş"
 
 
 def app_window_title(page: str = "") -> str:

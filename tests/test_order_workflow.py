@@ -239,6 +239,59 @@ def test_pdf_quality_glued_to_description():
     assert lines["SS11"].kalite_provizyonlari == "GP2,GT,L,V,G,K,MMN"
 
 
+def test_pdf_quality_alphanumeric_part_no():
+    """Parça no EL5079 gibi alfanumerik olunca kalite yine okunmalı."""
+    text = """
+    SIPARIS TARIHI/ PO DATE
+    28/08/2026
+    SIPARIS EMRI NO / PURCHASE ORDER NO
+    PO385718
+    SS9 SV1 EL5079 D01 GP2,L,V,G,MM,NN
+    Deneme Basligi Ucus Sonlandirma Almac Anteni
+    5 Adet 1.550,000 USD 7.750,00 19/11/2026 Elmadag
+    SS10 SV1 EL5079 D01 GP2,L,V,G,MM,NN
+    Deneme Basligi Ucus Sonlandirma Almac Anteni
+    5 Adet 1.550,000 USD 7.750,00 14/01/2027 Elmadag
+    """
+    _, lines = parse_order_pdf_text(text)
+    assert lines["SS9"].kalite_provizyonlari == "GP2,L,V,G,MM,NN"
+    assert lines["SS10"].kalite_provizyonlari == "GP2,L,V,G,MM,NN"
+
+
+def test_pdf_quality_standalone_continuation_line():
+    """Satır sonu kırılımında alt satırdaki tek kod (MM) kaliteye eklenmeli."""
+    text = """
+    SIPARIS TARIHI/ PO DATE
+    28/08/2026
+    SIPARIS EMRI NO / PURCHASE ORDER NO
+    PO385718
+    SS6 SV1 00236425 D01 GP2,L,V,G,GT,XX,NN,
+    MM
+    IHA PLATFORMU GUDUMLU MERMI USTU VERIBAGI
+    2 Adet 1.600,000 USD 3.200,00 23/01/2026 Elmadag
+    """
+    _, lines = parse_order_pdf_text(text)
+    assert lines["SS6"].kalite_provizyonlari == "GP2,L,V,G,GT,XX,NN,MM"
+    assert "IHA" not in lines["SS6"].kalite_provizyonlari
+
+
+def test_pdf_deneme_sample_kalem_6_to_10():
+    """Gerçek deneme.pdf — Kalem 6-10 kalite provizyonları."""
+    from pathlib import Path
+
+    pdf = Path(r"c:\Users\Asus.DESKTOP-9F6EQVL\Desktop\KLDHDH\sipariş örnekleri\3\deneme.pdf")
+    if not pdf.exists():
+        return
+    from teklif_hazirlama.core.order_pdf_parser import OrderPdfParser
+
+    _, lines = OrderPdfParser().parse(pdf)
+    assert lines["SS6"].kalite_provizyonlari == "GP2,L,V,G,GT,XX,NN,MM"
+    assert lines["SS7"].kalite_provizyonlari == "GP2,L,V,G,GT,XX,NN,MM"
+    assert lines["SS8"].kalite_provizyonlari == "GP2,L,V,G,GT,XX,NN,MM"
+    assert lines["SS9"].kalite_provizyonlari == "GP2,L,V,G,MM,NN"
+    assert lines["SS10"].kalite_provizyonlari == "GP2,L,V,G,MM,NN"
+
+
 def test_highlight_quality_codes():
     assert is_highlight_quality_code("C")
     assert is_highlight_quality_code("DKG")

@@ -78,13 +78,22 @@ def extract_urun_kodu(segment: str) -> str:
 def build_teslim_tarihi_text(parcalar: list[str]) -> str:
     """
     Her ürün kodu tek satır: 'KOD - N adet T0+H Hafta, ...'
+    Birebir aynı satırlar bir kez yazılır; farklı süre/adetler ayrı kalır.
     Satır uzunsa Excel/UI wrap ile alta geçer; dilimler ayrı satıra bölünmez.
     """
     lines: list[str] = []
+    seen: set[str] = set()
     for parca in parcalar:
         if not parca or not str(parca).strip():
             continue
-        lines.append(_normalize_teslim_parca_one_line(str(parca).strip()))
+        line = _normalize_teslim_parca_one_line(str(parca).strip())
+        if not line:
+            continue
+        key = " ".join(line.casefold().split())
+        if key in seen:
+            continue
+        seen.add(key)
+        lines.append(line)
     if not lines:
         return ""
     return "\n".join(lines + [T0_MARKER])

@@ -291,7 +291,7 @@ def _istek_row_cells(
                 yil_ay,  # A
                 "",  # B
                 firma,  # C
-                "",  # D
+                (line.ants_is_urun_kodu or "").strip(),  # D — Antsis Ürün Kodu
                 stok_kodu,  # E
                 stok_aciklama,  # F — Stok Tanımı / Stok Kodu
                 str(line.adet),  # G

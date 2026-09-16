@@ -13,7 +13,7 @@ PO_RE = re.compile(r"\b(PO[- ]*\d+)\b", re.IGNORECASE)
 PO_PREFIX_RE = re.compile(r"^PO[- ]*", re.IGNORECASE)
 QUALITY_CODE_RE = re.compile(r"^[A-Z]{1,4}\d{0,2}$", re.IGNORECASE)
 REV_TOKEN_RE = re.compile(r"^[A-Z]\d{2}$", re.IGNORECASE)
-PART_NO_RE = re.compile(r"^\d{5,}$")
+PART_NO_RE = re.compile(r"^[A-Z0-9]{4,}$", re.IGNORECASE)
 SV_TOKEN_RE = re.compile(r"^SV\d+", re.IGNORECASE)
 WHITESPACE_RE = re.compile(r"[ \t]+")
 # Yapışık açıklama ayırırken bilinen kodlar (MMNETHERNET → MMN, MMNE değil)
@@ -204,9 +204,25 @@ def _extract_quality_from_block(block: list[str]) -> str:
         candidate = line.strip()
         if _is_quality_blob(candidate):
             quality_parts.append(_normalize_quality_token(candidate))
+        elif _is_standalone_quality_continuation(candidate):
+            code = candidate.strip().upper()
+            if quality_parts:
+                base = quality_parts[-1].rstrip(",").strip()
+                quality_parts[-1] = f"{base},{code}" if base else code
+            else:
+                quality_parts.append(code)
+            break
         else:
             break
     return " ".join(quality_parts).strip()
+
+
+def _is_standalone_quality_continuation(text: str) -> bool:
+    """PDF satır kırılımı: virgüllü listenin devamı tek kod satırı (MM)."""
+    raw = (text or "").strip()
+    if not raw or " " in raw or "," in raw:
+        return False
+    return raw.upper() in KNOWN_QUALITY_CODES
 
 
 def _quality_blob_from_ss_tokens(tokens: list[str]) -> str:

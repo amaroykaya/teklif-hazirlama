@@ -242,7 +242,7 @@ def test_build_istek_sheets_tsv():
     assert cols[0] == "2026 Temmuz"  # A
     assert cols[1] == ""  # B
     assert cols[2] == "roketsan"  # C
-    assert cols[3] == ""  # D
+    assert cols[3] == "ANT-1"  # D Antsis ürün kodu
     assert cols[4] == "00239277"  # E stok kodu
     assert cols[5] == "VIDEO ENCODER / 00239277"  # F
     assert cols[6] == "29"  # G

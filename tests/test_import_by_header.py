@@ -124,6 +124,66 @@ def test_parse_istek_without_tedarikci_notu(tmp_path):
     assert lines[0].adet == 5
     assert lines[0].ants_is_urun_kodu == ""
     assert lines[0].termin_tarihi is not None
+
+
+def test_parse_with_plus_symbol(tmp_path):
+    path = tmp_path / "plus.xlsx"
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["meta"])
+    ws.append(
+        [
+            "Teklifte Bulun",
+            "Stok Kodu",
+            "Stok Tanımı",
+            "Miktar",
+            "Fiyat",
+            "Satır Toplamı",
+            "Tedarikçi Notu",
+        ]
+    )
+    ws.append(
+        [
+            "+",
+            "001",
+            "Urun A",
+            5,
+            10,
+            50,
+            "Teslim Süreleri : ANT-1 - 5 adet T0+1 Hafta T0: Sipariş Onay Tarihi",
+        ]
+    )
+    ws.append(
+        [
+            "N",
+            "002",
+            "Urun B",
+            3,
+            10,
+            30,
+            "Teslim Süreleri : ANT-2 - 3 adet T0+1 Hafta T0: Sipariş Onay Tarihi",
+        ]
+    )
+    ws.append(
+        [
+            "Y",
+            "003",
+            "Urun C",
+            2,
+            10,
+            20,
+            "Teslim Süreleri : ANT-3 - 2 adet T0+1 Hafta T0: Sipariş Onay Tarihi",
+        ]
+    )
+    wb.save(path)
+
+    lines, errors = ImportParser().parse(path)
+    assert errors == []
+    assert len(lines) == 2
+    assert lines[0].stok_aciklama == "Urun A / 001"
+    assert lines[0].ants_is_urun_kodu == "ANT-1"
+    assert lines[1].stok_aciklama == "Urun C / 003"
+    assert lines[1].ants_is_urun_kodu == "ANT-3"
     real = Path(r"C:\Users\Asus.DESKTOP-9F6EQVL\Desktop\KLDHDh\QR075313.xlsx")
     if not real.exists():
         return
@@ -133,3 +193,19 @@ def test_parse_istek_without_tedarikci_notu(tmp_path):
     assert lines[0].adet == 29
     assert lines[0].toplam_fiyat > 0
     assert lines[0].termin_tarihi is not None
+
+
+def test_normalize_antsis_urun_kodu_strips_shell_rev():
+    from teklif_hazirlama.core.import_parser import normalize_antsis_urun_kodu
+
+    assert (
+        normalize_antsis_urun_kodu("ANT-EEKB-826D-SHELL_Rev1.0_V1.0")
+        == "ANT-EEKB-826D"
+    )
+    assert (
+        normalize_antsis_urun_kodu("ANT-USS-863D_SHELL_Rev1.1_V2.0")
+        == "ANT-USS-863D"
+    )
+    assert normalize_antsis_urun_kodu("RF COMPONENT,ANTENNEA,ANT-0082") == "ANT-0082"
+    assert normalize_antsis_urun_kodu("ANT-DVI-ENC-623F") == "ANT-DVI-ENC-623F"
+    assert normalize_antsis_urun_kodu("") == ""

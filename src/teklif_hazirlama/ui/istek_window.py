@@ -117,7 +117,7 @@ class IstekWindow(QMainWindow):
         return row
 
     def _load_defaults(self) -> None:
-        self._reload_customers()
+        self._reload_customers(select_code="roketsan")
         self._reload_list_combo(self.hazirlayan, self.workflow.store.get_list("hazirlayanlar"))
         self._on_customer_changed()
 

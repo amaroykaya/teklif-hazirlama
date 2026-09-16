@@ -20,6 +20,26 @@ from teklif_hazirlama.infrastructure.excel_import_reader import (
 )
 
 _URUN_KODU_RE = re.compile(r"(ANT-[A-Z0-9]+(?:-[A-Z0-9]+)*)", re.IGNORECASE)
+# Dosya/revizyon ekleri: -SHELL, _SHELL, _Rev1.0, _V1.0 (tire veya alt çizgi)
+_URUN_FILE_SUFFIX_RE = re.compile(
+    r"[-_](?:SHELL|HOUSING|BODY|COVER|BRACKET)(?:[-_].*)?$",
+    re.IGNORECASE,
+)
+_URUN_REV_SUFFIX_RE = re.compile(
+    r"[-_](?:Rev|V)[\d.]+(?:[-_].*)?$",
+    re.IGNORECASE,
+)
+
+
+def normalize_antsis_urun_kodu(text: str | None) -> str:
+    """Stok tanımı / dosya adından Antsis ürün kodunu çıkarır; SHELL/Rev eklerini atar."""
+    match = _URUN_KODU_RE.search(text or "")
+    if not match:
+        return ""
+    code = match.group(1).upper()
+    code = _URUN_FILE_SUFFIX_RE.sub("", code)
+    code = _URUN_REV_SUFFIX_RE.sub("", code)
+    return code.rstrip("-_")
 
 
 class ImportParseError(Exception):
@@ -231,8 +251,7 @@ class ImportParser:
         )
 
     def _extract_urun_kodu(self, text: str) -> str:
-        match = _URUN_KODU_RE.search(text or "")
-        return match.group(1).upper() if match else ""
+        return normalize_antsis_urun_kodu(text)
 
     def _to_date(self, value) -> date | None:
         if value is None or str(value).strip() == "":

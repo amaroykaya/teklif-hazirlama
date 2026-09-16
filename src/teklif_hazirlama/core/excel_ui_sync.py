@@ -128,7 +128,7 @@ def _is_teklifte_y(value) -> bool:
     if value is True:
         return True
     text = str(value or "").strip().upper()
-    return text in {"Y", "YES", "EVET", "1"}
+    return text in {"Y", "YES", "EVET", "1", "+"}
 
 
 def _row_empty(ws, row_idx: int) -> bool:
@@ -149,12 +149,13 @@ def _write_line(
     line_index: int = 0,
 ) -> bool:
     """True dönerse Temin/Teslim dilimleri UI metninden güncellendi."""
+    unit_price = _excel_unit_price(line)
     _set(ws, row_idx, columns, "miktar", int(line.adet))
-    _set(ws, row_idx, columns, "fiyat", _to_number(line.birim_fiyat))
+    _set(ws, row_idx, columns, "fiyat", _to_number(unit_price))
     if "satir_toplami" in columns:
         toplam = line.toplam_fiyat
-        if toplam == 0 and line.adet:
-            toplam = line.birim_fiyat * line.adet
+        if (toplam == 0 or toplam is None) and line.adet:
+            toplam = unit_price * line.adet
         _set(ws, row_idx, columns, "satir_toplami", _to_number(toplam))
 
     stok_kodu = (line.stok_kodu or "").strip()
@@ -253,6 +254,13 @@ def _set(ws, row_idx: int, columns: dict[str, int], field: str, value) -> None:
     if field not in columns:
         return
     ws.cell(row=row_idx, column=columns[field] + 1).value = value
+
+
+def _excel_unit_price(line: QuoteLine) -> Decimal:
+    """Doldurulmuş Excel Fiyat: revizede indirimli, değilse birim fiyat."""
+    if line.indirimli_birim_fiyat is not None:
+        return Decimal(line.indirimli_birim_fiyat)
+    return Decimal(line.birim_fiyat or 0)
 
 
 def _to_number(value: Decimal) -> float:
